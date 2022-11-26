@@ -1,26 +1,35 @@
-#include "llvm/Pass.h"
-#include "llvm/IR/Function.h"
-#include "llvm/Support/raw_ostream.h"
-#include "llvm/Analysis/BranchProbabilityInfo.h"
-#include "llvm/Analysis/CFG.h"
-#include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/PassManager.h"
+#include "branch_miss.h"
 
 using namespace llvm;
-namespace {
-struct MCPredictionMissRate : public FunctionPass {
-  static char ID;
-  MCPredictionMissRate() : FunctionPass(ID) {}
 
-  bool runOnFunction(Function &F) override {
-    errs() << "Hello: ";
-    errs().write_escaped(F.getName()) << '\n';
+  bool MCPredictionMissRate::runOnFunction(Function &F) {
+    std::uniform_real_distribution<float>  Distribution(0.0, 1.0);
+    std::default_random_engine Generator;
+
+    std::unordered_map<BasicBlock*, uint16_t> Suc_ids;
+    float num;
+
+      for(auto &Block : F.getBasicBlockList()) {
+        errs() << "=======================\n";
+        errs() << "Scanning BB : " << &Block << "\n";
+        num = Distribution(Generator);
+        auto Prob = BranchProbabilityInfo();
+        auto Start = 0.0f;
+        for(auto Suc : successors(&Block)) {
+          auto EdgeProbs = Prob.getEdgeProbability(&Block, Suc);
+          float End;
+          End = Start + static_cast<float>(EdgeProbs.getNumerator()) / (EdgeProbs.getDenominator());
+          errs() << "checking Successor : " << *(&Suc) << "\n";
+          if(num >= Start && num <= End) {
+            Blocks.push_back(BBProb(static_cast<BasicBlock*>(&Block), static_cast<BasicBlock *>(Suc)));
+            errs() << &Block << " : " << *(&Suc) << "\n";
+            break;
+          }
+      }
+    }
     return false;
   }
   
-}; // end of struct Hello
-}  // end of anonymous namespace
-
 char MCPredictionMissRate::ID = 0;
 static RegisterPass<MCPredictionMissRate> X("mc-branch-miss", "Monte-Carlo branch prediction miss rate simulation",
                              false /* Only looks at CFG */,
