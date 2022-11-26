@@ -23,6 +23,9 @@ struct MCPredictionMissRate : public FunctionPass {
   static char ID;
   MCPredictionMissRate() : FunctionPass(ID) {}
 
+  float saturating2bit(std::vector<BBProb> bs);
+  void simulate(std::vector<BBProb>, std::vector<std::function<float(BBProb)>> f);
+
   bool runOnFunction(Function &F) override;
 
   
