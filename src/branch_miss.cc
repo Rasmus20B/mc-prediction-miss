@@ -142,17 +142,6 @@ bool MCPredictionMissRate::runOnFunction(Function &F) {
       count++;
       Start = End;
     }
-    // Do the prediction part
-    /* This part will be modular soon to allow different prediction models
-     * Starting off with 2 bit saturation counter
-     */
-
-    // br expr1 branch1 expr2 branch2
-    // if branch1 is predicted, then set move it up, then move the instruction's state machine to taken
-    //
-    //
-    // If the BHT has no record of the branch/Current block, add it with the value of strongly taken (3)
-    // Done before work to simulate default behaviour
     correlation(cur, count);
     
 
