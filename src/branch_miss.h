@@ -10,9 +10,15 @@
 #include <random> 
 #include <unordered_map> 
 
+
 using namespace llvm;
 
-inline std::unordered_map<const BasicBlock*, uint32_t> BHT;
+// Used by 2-bit saturating counter
+inline std::unordered_map<const BasicBlock*, uint32_t> satBHT;
+
+// Used by Two-level adaptive correlation-based scheme
+inline std::unordered_map<const BasicBlock*, uint8_t> corBHT;
+inline std::unordered_map<uint8_t, uint32_t> corBPT;
 
 struct MCPredictionMissRate : public FunctionPass {
   static char ID;
@@ -20,7 +26,7 @@ struct MCPredictionMissRate : public FunctionPass {
   bool runOnFunction(Function &F) override;
 
   void saturating2Bit(const BasicBlock* cur,  uint32_t count) noexcept;
-  void biMode(const BasicBlock* cur, uint32_t) noexcept;
+  void correlation(const BasicBlock* cur, uint32_t count) noexcept;
 
   double hits;
   double misses;
