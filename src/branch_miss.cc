@@ -100,36 +100,10 @@ bool MCPredictionMissRate::runOnFunction(Function &F) {
 
   errs() << "misses: " << misses << "\n";
   errs() << "hits: " << hits << "\n";
+  errs() << "Miss Rate (%): " << static_cast<int>((misses/ (misses + hits)) * 100) << "\n";
   return false;
 }
 
-  // for(auto &Block : F.getBasicBlockList()) {
-  //   errs() << "=======================\n";
-  //   errs() << "Scanning BB : " << &Block << "\n";
-  //   auto Prob = BranchProbabilityInfo();
-  //   auto Start = 0.0f;
-  //   errs() << "num: " << num[num_count] << "\n";
-  //   for(auto Suc : successors(&Block)) {
-  //     auto EdgeProbs = Prob.getEdgeProbability(&Block, Suc);
-  //     float End;
-  //     End = Start + static_cast<float>(EdgeProbs.getNumerator()) / (EdgeProbs.getDenominator());
-  //     errs() << "checking Successor : " << *(&Suc) << " with range [" << Start << "," << End << "]\n";
-  //     if(num[num_count] >= Start && num[num_count] < End) {
-  //       Blocks.push_back(BBProb(static_cast<BasicBlock*>(&Block), static_cast<BasicBlock *>(Suc)));
-  //       errs() << &Block << " chose: " << *(&Suc) << "\n";
-  //       break;
-  //     }
-  //     Start = End;
-  //   }
-  //   num_count++;
-  // }
-
-  // saturating2bit(Blocks);
-  //
-  // for(auto &i : Blocks) {
-  //   errs() << i.m_BB << " Chose "  << i.m_Chosen << "\n";
-  // }
-  //
 char MCPredictionMissRate::ID = 0;
 static RegisterPass<MCPredictionMissRate> X("mc-branch-miss", "Monte-Carlo branch prediction miss rate simulation",
                              false /* Only looks at CFG */,
