@@ -2,8 +2,6 @@
 
 using namespace llvm;
   
-
-
 void MCPredictionMissRate::correlation(const BasicBlock* cur, uint32_t count) noexcept {
 
   // take the address of the current block
@@ -92,7 +90,7 @@ void MCPredictionMissRate::saturating2Bit(const BasicBlock* cur, uint32_t count)
   }
   return;
 }
-#define CHECKS 1500000
+#define CHECKS 1000000
 bool MCPredictionMissRate::runOnFunction(Function &F) {
   std::uniform_real_distribution<float>  Distribution(0.0, 1.0);
   std::default_random_engine Generator;
