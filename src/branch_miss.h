@@ -12,13 +12,15 @@
 
 using namespace llvm;
 
-inline std::unordered_map<const BasicBlock*, int> BHT;
+inline std::unordered_map<const BasicBlock*, uint32_t> BHT;
 
 struct MCPredictionMissRate : public FunctionPass {
   static char ID;
   MCPredictionMissRate() : FunctionPass(ID) {}
-
   bool runOnFunction(Function &F) override;
+
+  void saturating2Bit(const BasicBlock* cur,  uint32_t count) noexcept;
+  void biMode(const BasicBlock* cur, uint32_t) noexcept;
 
   double hits;
   double misses;

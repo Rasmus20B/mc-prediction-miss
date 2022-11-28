@@ -3,6 +3,40 @@
 using namespace llvm;
   
 
+void MCPredictionMissRate::saturating2Bit(const BasicBlock* cur, uint32_t count) noexcept {
+    auto found = BHT.find(cur);
+    if((found == BHT.end())) {
+      BHT.insert(std::pair<const BasicBlock*, int>(cur, 4));
+    }
+    found = BHT.find(cur);
+// If the branch is taken 'actual' and predicted to be strong or weak TAKEN
+    if(!count && found->second > 1) {
+      hits++; 
+      if(found->second < 3){
+        found->second++;
+      }
+    // if the branch is not taken 'actual' and predicted to be strong or weak TAKEN
+    } else if(count == 1 && (found->second > 1)) {
+      misses++;
+      if(found->second){
+        found->second--;
+      }
+    // if the branch is not taken 'actual' and predicted to be strong or weak NOT TAKEN
+    } else if (count == 1 && found->second < 2) {
+      // check for underflow
+      if(found->second){
+        found->second--;
+      }
+      hits++;
+    // if the branch is taken 'actual' and predicted to be strog or weak NOT TAKEN
+    } else if (!count && found->second <2) {
+      misses++;
+      if(found->second < 3){
+        found->second++;
+      }
+    }
+  return;
+}
 #define CHECKS 1000000
 bool MCPredictionMissRate::runOnFunction(Function &F) {
   std::uniform_real_distribution<float>  Distribution(0.0, 1.0);
@@ -51,49 +85,19 @@ bool MCPredictionMissRate::runOnFunction(Function &F) {
       count++;
       Start = End;
     }
-      // Do the prediction part
-      /* This part will be modular soon to allow different prediction models
-       * Starting off with 2 bit saturation counter
-       */
+    // Do the prediction part
+    /* This part will be modular soon to allow different prediction models
+     * Starting off with 2 bit saturation counter
+     */
 
-      // br expr1 branch1 expr2 branch2
-      // if branch1 is predicted, then set move it up, then move the instruction's state machine to taken
-      //
-      //
-      // If the BHT has no record of the branch/Current block, add it with the value of strongly taken (3)
-      // Done before work to simulate default behaviour
-    auto found = BHT.find(cur);
-    if((found == BHT.end())) {
-      BHT.insert(std::pair<const BasicBlock*, int>(cur, 4));
-    }
-    found = BHT.find(cur);
+    // br expr1 branch1 expr2 branch2
+    // if branch1 is predicted, then set move it up, then move the instruction's state machine to taken
+    //
+    //
+    // If the BHT has no record of the branch/Current block, add it with the value of strongly taken (3)
+    // Done before work to simulate default behaviour
+    saturating2Bit(cur, count);
     
-    // If the branch is taken 'actual' and predicted to be strong or weak TAKEN
-    if(!count && found->second > 1) {
-      hits++; 
-      if(found->second < 3){
-        found->second++;
-      }
-    // if the branch is not taken 'actual' and predicted to be strong or weak TAKEN
-    } else if(count == 1 && (found->second > 1)) {
-      misses++;
-      if(found->second){
-        found->second--;
-      }
-    // if the branch is not taken 'actual' and predicted to be strong or weak NOT TAKEN
-    } else if (count == 1 && found->second < 2) {
-      // check for underflow
-      if(found->second){
-        found->second--;
-      }
-      hits++;
-    // if the branch is taken 'actual' and predicted to be strog or weak NOT TAKEN
-    } else if (!count && found->second <2) {
-      misses++;
-      if(found->second < 3){
-        found->second++;
-      }
-    }
 
     cur = next;
   }
