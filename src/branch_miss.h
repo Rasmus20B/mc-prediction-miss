@@ -12,6 +12,22 @@
 
 
 using namespace llvm;
+// a given probability struct:
+// keeps track of the successors of a given basic block
+// keeps track of how many times it hits or misses each of those blocks
+// is related to a basic block
+//
+struct ps{
+  // Last part of equation
+  std::vector<BasicBlock*> Succ{};
+  std::vector<int> hits{};
+  std::vector<int> misses{};
+};
+
+struct Probability {
+  double hits = 1;
+  double misses;
+};
 
 // Used by 2-bit saturating counter
 inline std::unordered_map<const BasicBlock*, uint32_t> satBHT;
@@ -19,6 +35,15 @@ inline std::unordered_map<const BasicBlock*, uint32_t> satBHT;
 // Used by Two-level adaptive correlation-based scheme
 inline std::unordered_map<const BasicBlock*, uint8_t> corBHT;
 inline std::unordered_map<uint8_t, uint32_t> corBPT;
+
+// Keep track of mis-prediction rate per branch
+inline std::unordered_map<const BasicBlock*, Probability> blockProbs;
+
+inline std::unordered_map<const BasicBlock*, ps> probs;
+
+// Keep track of how many times a basic block has been run
+// used in final calculation to compare against how many times the program itself has been run
+inline std::unordered_map<const BasicBlock*, int> runs;
 
 struct MCPredictionMissRate : public FunctionPass {
   static char ID;

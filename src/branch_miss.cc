@@ -57,6 +57,17 @@ void MCPredictionMissRate::correlation(const BasicBlock* cur, uint32_t count) no
 }
 
 void MCPredictionMissRate::saturating2Bit(const BasicBlock* cur, uint32_t count) noexcept {
+
+  // In the counter, keep track of the successor. The rate is per successor per original.
+  // The total mis-prediction rate is for each block i for each of its successors j
+  // map.find(i->j) = mis-prediction/rate information of i to j
+
+  auto bbprob = blockProbs.find(cur);
+  if((bbprob == blockProbs.end())) {
+    blockProbs.insert(std::pair<const BasicBlock *, Probability>(cur, Probability()));
+  }
+  bbprob = blockProbs.find(cur);
+
   auto found = satBHT.find(cur);
   if((found == satBHT.end())) {
     satBHT.insert(std::pair<const BasicBlock*, int>(cur, 4));
@@ -65,12 +76,14 @@ void MCPredictionMissRate::saturating2Bit(const BasicBlock* cur, uint32_t count)
 // If the branch is taken 'actual' and predicted to be strong or weak TAKEN
   if(!count && found->second > 1) {
     hits++; 
+    bbprob->second.hits++;
     if(found->second < 3){
       found->second++;
     }
   // if the branch is not taken 'actual' and predicted to be strong or weak TAKEN
   } else if(count == 1 && (found->second > 1)) {
     misses++;
+    bbprob->second.misses++;
     if(found->second){
       found->second--;
     }
@@ -80,75 +93,153 @@ void MCPredictionMissRate::saturating2Bit(const BasicBlock* cur, uint32_t count)
     if(found->second){
       found->second--;
     }
+    bbprob->second.hits++;
     hits++;
   // if the branch is taken 'actual' and predicted to be strog or weak NOT TAKEN
   } else if (!count && found->second <2) {
     misses++;
+    bbprob->second.misses++;
     if(found->second < 3){
       found->second++;
     }
   }
   return;
 }
-#define CHECKS 1000000
+
+#define CHECKS 1000
 bool MCPredictionMissRate::runOnFunction(Function &F) {
   std::uniform_real_distribution<float>  Distribution(0.0, 1.0);
   std::default_random_engine Generator;
-  float nums[CHECKS] = {0};
-
-  for(auto &i : nums) {
-    i = Distribution(Generator);
-  }
+  
 
   errs() << "===/ Scanning Function: " << F.getName() << "\n";
 
-
   const auto &Blocks = F.getBasicBlockList();
+
+  int loop_count{};
+
   auto cur = &Blocks.front();
+  BasicBlock *prev{};
+  // loop until you reach the full checks
+  while(loop_count < CHECKS) {
+    
+    auto rand = Distribution(Generator);
 
-#pragma omp parallel for
-  for(uint64_t i = 0; i < CHECKS; i++) {
-
-    errs() << "Scanning BB : " << cur << "\n";
-    //Check if the Block is a terminating block
+    // check if it's a terminating block
     if(auto Succs = successors(cur).empty()) {
-      //Terminating block of the function
-      if(cur == &Blocks.front()){
+    // If the function only has a single basic block, then simply return false. We don't care about it
+      if(cur == &Blocks.front()) {
         return false;
+        // else if current block isn't the first block, it's a regular terminating block. Increase the looop count and go back to the start of the function
+      } else { 
+        errs() << loop_count << "\n";
+        loop_count++;
+        cur = &Blocks.front();
+        continue;
       }
-      cur = &Blocks.front();
-      // errs() << "No successors to this block\n";
     }
-    // Gets Probability info for the Block
-    auto Prob = BranchProbabilityInfo();
-    auto Start = 0.0f;
+
+    auto start = 0.0f;
     auto next = cur;
-    // Used to check if the branch is take or not
+
     auto count = 0;
-    // Get the current basic block's successors
-    for(auto Succ: successors(cur)) {
-      // For each Successor block, compare random number with probability range to select an 'Actual' chosen Successor
-      auto EdgeProbs = Prob.getEdgeProbability(cur, Succ); 
-      float End;
-      End = Start + static_cast<float>(EdgeProbs.getNumerator()) / (EdgeProbs.getDenominator());
-      errs() << "checking Successor : " << *(&Succ) << " with range [" << Start << "," << End << "]\n";
-      if(nums[i] >= Start && nums[i] < End) {
-        errs() << cur << " chose: " << *(&Succ) << "\n";
-        next = Succ;
+
+    auto prob = BranchProbabilityInfo();
+    // Generate a random number to use for this block as the definite point in a probability distribution
+    // Use that random number to select a successor "Actual"
+    for(auto succ : successors(cur)) {
+      auto edgeProbs = prob.getEdgeProbability(cur, succ);
+      float end; 
+      end = start + static_cast<float>(edgeProbs.getNumerator()) / (edgeProbs.getDenominator());
+      errs() << start << " ... " << end << "\n";
+      errs() <<  " rand =  " << rand << "\n";
+      if(rand >= start && rand < end) {
+        next = succ;
+        errs() << "chose basic block : " << count << "\n";
         break;
       }
       count++;
-      Start = End;
+      start = end;
     }
-    correlation(cur, count);
-    
 
+    saturating2Bit(cur, count);
+
+    prev = const_cast<BasicBlock*>(cur);
     cur = next;
+
+    // If the terminating basic block is reached, increment the loop_count
+    //
+  }
+
+  // for(uint64_t i = 0; i < CHECKS; i++) {
+  //
+  //   //Check if the Block is a terminating block
+  //   if(auto Succs = successors(cur).empty()) {
+  //     //Terminating block of the function
+  //     if(cur == &Blocks.front()){
+  //       return false;
+  //     }
+  //     loop_count = 0;
+  //     cur = &Blocks.front();
+  //     // errs() << "No successors to this block\n";
+  //   }
+  //   // Gets Probability info for the Block
+  //   const auto Prob = BranchProbabilityInfo();
+  //   auto Start = 0.0f;
+  //   auto next = cur;
+  //   // Used to check if the branch is take or not
+  //   // 0 = yes
+  //   // 1 = no
+  //   auto count = 0;
+  //   // Get the current basic block's successors
+  //   for(auto Succ: successors(cur)) {
+  //     // Save the edge probability with the successors address in a map
+  //     // This can be used for the first part of the equation
+  //     // For each Successor block, compare random number with probability range to select an 'Actual' chosen Successor
+  //     auto EdgeProbs = Prob.getEdgeProbability(cur, Succ); 
+  //     float End;
+  //     End = Start + static_cast<float>(EdgeProbs.getNumerator()) / (EdgeProbs.getDenominator());
+  //     if(nums[i] >= Start && nums[i] < End) {
+  //       next = Succ;
+  //       break;
+  //     }
+  //     count++;
+  //     Start = End;
+  //   }
+  //   saturating2Bit(cur, count);
+  //
+  //   // Once the prediction has been determined, update individual block mis-prediction rate table
+  //
+  //   cur = next;
+  // }
+
+
+  // for each block i
+  //  for each block j
+  //    mis_rate = probability of i being executed (0.5 or 1) * probability of j being executed * mis-prediction rate for i to j
+
+  double miss_rate = 1.0f;
+  // for(auto &i : blockProbs) {
+  //   errs() << "Printing for each block\n";
+  // }
+  auto Prob = BranchProbabilityInfo();
+  for(auto &i : blockProbs) {
+    for(auto j : successors(i.first)) {
+      auto edges = Prob.getEdgeProbability(i.first, j);
+      auto p = edges.getNumerator() / edges.getDenominator();
+      // The probability from the cfg info  
+      //                                                    Pmispredicts
+      miss_rate += (p                 * p *          ((i.second.misses) / (i.second.misses)+(i.second.hits)));
+      errs() << "miss rate for block : " << static_cast<int>(i.second.misses) << " of " << static_cast<int>(i.second.misses + i.second.hits) << "\n";
+    }
   }
 
   errs() << "misses: " << misses << "\n";
   errs() << "hits: " << hits << "\n";
   errs() << "Miss Rate (%): " << static_cast<int>((misses/ (misses + hits)) * 100) << "\n";
+
+
+  errs() << "Miss Rate (%) (NEW): " << static_cast<int>(0.50 * (miss_rate)) << "\n";
   return false;
 }
 
