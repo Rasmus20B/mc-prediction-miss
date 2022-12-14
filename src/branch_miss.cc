@@ -116,7 +116,7 @@ bool MCPredictionMissRate::saturating2Bit(const BasicBlock* cur, uint32_t count)
   return true;
 }
 
-#define CHECKS 1000
+#define CHECKS 1000000
 bool MCPredictionMissRate::runOnFunction(Function &F) {
   std::uniform_real_distribution<float>  Distribution(0.0, 1.0);
   std::default_random_engine Generator;
@@ -201,7 +201,6 @@ bool MCPredictionMissRate::runOnFunction(Function &F) {
       ps->second.n_arrives++;
       if(next == succ && res) {
         ps->second.hits++;
-        errs() << "Thats a hit\n";
       } else if (next != succ && !res) {
         ps->second.misses++;
       }
