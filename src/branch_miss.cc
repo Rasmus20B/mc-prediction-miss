@@ -1,4 +1,5 @@
 #include "branch_miss.h"
+#include <type_traits>
 
 using namespace llvm;
   
@@ -110,7 +111,8 @@ void MCPredictionMissRate::saturating2Bit(const BasicBlock* cur, uint32_t count)
 bool MCPredictionMissRate::runOnFunction(Function &F) {
   std::uniform_real_distribution<float>  Distribution(0.0, 1.0);
   std::default_random_engine Generator;
-  
+ 
+  std::unordered_map<int, ps> probabilityTable;
 
   errs() << "===/ Scanning Function: " << F.getName() << "\n";
 
@@ -119,7 +121,7 @@ bool MCPredictionMissRate::runOnFunction(Function &F) {
   int loop_count{};
 
   auto cur = &Blocks.front();
-  BasicBlock *prev{};
+  BasicBlock *prev = const_cast<BasicBlock*>(cur);
   // loop until you reach the full checks
   while(loop_count < CHECKS) {
     
@@ -129,6 +131,7 @@ bool MCPredictionMissRate::runOnFunction(Function &F) {
     if(auto Succs = successors(cur).empty()) {
     // If the function only has a single basic block, then simply return false. We don't care about it
       if(cur == &Blocks.front()) {
+        errs() << "No usable basic blocks in function.\n";
         return false;
         // else if current block isn't the first block, it's a regular terminating block. Increase the looop count and go back to the start of the function
       } else { 
@@ -151,11 +154,11 @@ bool MCPredictionMissRate::runOnFunction(Function &F) {
       auto edgeProbs = prob.getEdgeProbability(cur, succ);
       float end; 
       end = start + static_cast<float>(edgeProbs.getNumerator()) / (edgeProbs.getDenominator());
-      errs() << start << " ... " << end << "\n";
-      errs() <<  " rand =  " << rand << "\n";
+      // errs() << start << " ... " << end << "\n";
+      // errs() <<  " rand =  " << rand << "\n";
       if(rand >= start && rand < end) {
         next = succ;
-        errs() << "chose basic block : " << count << "\n";
+        // errs() << "chose basic block : " << count << "\n";
         break;
       }
       count++;
@@ -163,6 +166,28 @@ bool MCPredictionMissRate::runOnFunction(Function &F) {
     }
 
     saturating2Bit(cur, count);
+
+    // errs() << prev << " == " << cur << "\n";
+
+    // update the map of cur -> successor branch info
+    for(auto succ : successors(cur)) {
+      // Get the current branch to successor probability
+      auto edgeProbsCur = prob.getEdgeProbability(cur, succ);
+      auto p = static_cast<float>(edgeProbsCur.getNumerator()) / (edgeProbsCur.getDenominator());
+      errs() << "Cur: " << p << "\n";
+      // Get the previous branch to current probability
+      auto edgeProbsPrev = prob.getEdgeProbability(prev, cur);
+      auto pp = static_cast<float>(edgeProbsPrev.getNumerator()) / (edgeProbsPrev.getDenominator());
+      errs() << "Prev: " << pp << "\n";
+
+      auto key = reinterpret_cast<uint64_t>(cur) ^ reinterpret_cast<uint64_t>(succ);
+      auto ps_found = probabilityTable.find(key);     
+      if(ps_found == probabilityTable.end()) {
+        auto tmp = ps();
+        probabilityTable.insert(std::make_pair(key, tmp));
+      }
+      ps_found = probabilityTable.find(key);
+    }
 
     prev = const_cast<BasicBlock*>(cur);
     cur = next;

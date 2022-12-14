@@ -10,7 +10,6 @@
 #include <random> 
 #include <unordered_map> 
 
-
 using namespace llvm;
 // a given probability struct:
 // keeps track of the successors of a given basic block
@@ -18,10 +17,14 @@ using namespace llvm;
 // is related to a basic block
 //
 struct ps{
-  // Last part of equation
-  std::vector<BasicBlock*> Succ{};
-  std::vector<int> hits{};
-  std::vector<int> misses{};
+  // the number of branch prediction hits
+  uint64_t hits{};
+  // the number of branch prediction misses
+  uint64_t misses{};
+  // the number of times the branch was actually run
+  uint64_t n_executes{};
+  // the number of times this branch was inspected
+  uint64_t n_arrives{};
 };
 
 struct Probability {
@@ -39,7 +42,6 @@ inline std::unordered_map<uint8_t, uint32_t> corBPT;
 // Keep track of mis-prediction rate per branch
 inline std::unordered_map<const BasicBlock*, Probability> blockProbs;
 
-inline std::unordered_map<const BasicBlock*, ps> probs;
 
 // Keep track of how many times a basic block has been run
 // used in final calculation to compare against how many times the program itself has been run
