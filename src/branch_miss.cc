@@ -3,7 +3,7 @@
 
 using namespace llvm;
   
-void MCPredictionMissRate::correlation(const BasicBlock* cur, uint32_t count) noexcept {
+bool MCPredictionMissRate::correlation(const BasicBlock* cur, uint32_t count) noexcept {
 
   // take the address of the current block
   auto history = corBHT.find(cur);
@@ -30,6 +30,7 @@ void MCPredictionMissRate::correlation(const BasicBlock* cur, uint32_t count) no
     //update the history value
     // shift the history to the left, and add the outcome (1, 0) to the least significant bit
     history->second = (history->second << 1) | 0b00000001;
+    return true;
   }
   // if branch is actually taken but not predicted to be taken
   if(!count && res->second < 2) {
@@ -37,6 +38,7 @@ void MCPredictionMissRate::correlation(const BasicBlock* cur, uint32_t count) no
     if(res->second < 3)
       res->second++;
     history->second = (history->second << 1) | 0b00000001;
+    return false;
   }
   // if branch is not taken but predicted to be taken
   if(count && res->second > 1) {
@@ -44,6 +46,7 @@ void MCPredictionMissRate::correlation(const BasicBlock* cur, uint32_t count) no
     if(res->second > 0)
       res->second--;
     history->second = (history->second << 1) ;
+    return false;
   }
   // if branch is not taken and is not predicted to be taken
   if(count && res->second < 2) {
@@ -51,13 +54,14 @@ void MCPredictionMissRate::correlation(const BasicBlock* cur, uint32_t count) no
     if(res->second > 0)
       res->second--;
     history->second = (history->second) ;
+    return true;
   } 
 
-  return;
+  return true;
 
 }
 
-void MCPredictionMissRate::saturating2Bit(const BasicBlock* cur, uint32_t count) noexcept {
+bool MCPredictionMissRate::saturating2Bit(const BasicBlock* cur, uint32_t count) noexcept {
 
   // In the counter, keep track of the successor. The rate is per successor per original.
   // The total mis-prediction rate is for each block i for each of its successors j
@@ -81,6 +85,7 @@ void MCPredictionMissRate::saturating2Bit(const BasicBlock* cur, uint32_t count)
     if(found->second < 3){
       found->second++;
     }
+    return true;
   // if the branch is not taken 'actual' and predicted to be strong or weak TAKEN
   } else if(count == 1 && (found->second > 1)) {
     misses++;
@@ -88,6 +93,7 @@ void MCPredictionMissRate::saturating2Bit(const BasicBlock* cur, uint32_t count)
     if(found->second){
       found->second--;
     }
+    return false;
   // if the branch is not taken 'actual' and predicted to be strong or weak NOT TAKEN
   } else if (count == 1 && found->second < 2) {
     // check for underflow
@@ -96,6 +102,7 @@ void MCPredictionMissRate::saturating2Bit(const BasicBlock* cur, uint32_t count)
     }
     bbprob->second.hits++;
     hits++;
+    return true;
   // if the branch is taken 'actual' and predicted to be strog or weak NOT TAKEN
   } else if (!count && found->second <2) {
     misses++;
@@ -103,8 +110,10 @@ void MCPredictionMissRate::saturating2Bit(const BasicBlock* cur, uint32_t count)
     if(found->second < 3){
       found->second++;
     }
+    return false;
   }
-  return;
+
+  return true;
 }
 
 #define CHECKS 1000
@@ -135,7 +144,6 @@ bool MCPredictionMissRate::runOnFunction(Function &F) {
         return false;
         // else if current block isn't the first block, it's a regular terminating block. Increase the looop count and go back to the start of the function
       } else { 
-        errs() << loop_count << "\n";
         loop_count++;
         cur = &Blocks.front();
         continue;
@@ -165,7 +173,7 @@ bool MCPredictionMissRate::runOnFunction(Function &F) {
       start = end;
     }
 
-    saturating2Bit(cur, count);
+    auto res = correlation(cur, count);
 
     // errs() << prev << " == " << cur << "\n";
 
@@ -174,19 +182,30 @@ bool MCPredictionMissRate::runOnFunction(Function &F) {
       // Get the current branch to successor probability
       auto edgeProbsCur = prob.getEdgeProbability(cur, succ);
       auto p = static_cast<float>(edgeProbsCur.getNumerator()) / (edgeProbsCur.getDenominator());
-      errs() << "Cur: " << p << "\n";
       // Get the previous branch to current probability
       auto edgeProbsPrev = prob.getEdgeProbability(prev, cur);
       auto pp = static_cast<float>(edgeProbsPrev.getNumerator()) / (edgeProbsPrev.getDenominator());
-      errs() << "Prev: " << pp << "\n";
 
       auto key = reinterpret_cast<uint64_t>(cur) ^ reinterpret_cast<uint64_t>(succ);
+      auto tmp = ps();
+      
+      tmp.prob_cur = p;
+      tmp.prob_prev = pp;
+
       auto ps_found = probabilityTable.find(key);     
       if(ps_found == probabilityTable.end()) {
-        auto tmp = ps();
         probabilityTable.insert(std::make_pair(key, tmp));
+        break;
       }
-      ps_found = probabilityTable.find(key);
+      auto ps = probabilityTable.find(key);
+      ps->second.n_arrives++;
+      if(next == succ && res) {
+        ps->second.hits++;
+        errs() << "Thats a hit\n";
+      } else if (next != succ && !res) {
+        ps->second.misses++;
+      }
+
     }
 
     prev = const_cast<BasicBlock*>(cur);
@@ -195,76 +214,19 @@ bool MCPredictionMissRate::runOnFunction(Function &F) {
     // If the terminating basic block is reached, increment the loop_count
     //
   }
-
-  // for(uint64_t i = 0; i < CHECKS; i++) {
-  //
-  //   //Check if the Block is a terminating block
-  //   if(auto Succs = successors(cur).empty()) {
-  //     //Terminating block of the function
-  //     if(cur == &Blocks.front()){
-  //       return false;
-  //     }
-  //     loop_count = 0;
-  //     cur = &Blocks.front();
-  //     // errs() << "No successors to this block\n";
-  //   }
-  //   // Gets Probability info for the Block
-  //   const auto Prob = BranchProbabilityInfo();
-  //   auto Start = 0.0f;
-  //   auto next = cur;
-  //   // Used to check if the branch is take or not
-  //   // 0 = yes
-  //   // 1 = no
-  //   auto count = 0;
-  //   // Get the current basic block's successors
-  //   for(auto Succ: successors(cur)) {
-  //     // Save the edge probability with the successors address in a map
-  //     // This can be used for the first part of the equation
-  //     // For each Successor block, compare random number with probability range to select an 'Actual' chosen Successor
-  //     auto EdgeProbs = Prob.getEdgeProbability(cur, Succ); 
-  //     float End;
-  //     End = Start + static_cast<float>(EdgeProbs.getNumerator()) / (EdgeProbs.getDenominator());
-  //     if(nums[i] >= Start && nums[i] < End) {
-  //       next = Succ;
-  //       break;
-  //     }
-  //     count++;
-  //     Start = End;
-  //   }
-  //   saturating2Bit(cur, count);
-  //
-  //   // Once the prediction has been determined, update individual block mis-prediction rate table
-  //
-  //   cur = next;
-  // }
-
-
-  // for each block i
-  //  for each block j
-  //    mis_rate = probability of i being executed (0.5 or 1) * probability of j being executed * mis-prediction rate for i to j
-
   double miss_rate = 1.0f;
-  // for(auto &i : blockProbs) {
-  //   errs() << "Printing for each block\n";
-  // }
   auto Prob = BranchProbabilityInfo();
-  for(auto &i : blockProbs) {
-    for(auto j : successors(i.first)) {
-      auto edges = Prob.getEdgeProbability(i.first, j);
-      auto p = edges.getNumerator() / edges.getDenominator();
+  for(auto &i : Blocks) {
+    for(auto j : successors(&i)) {
       // The probability from the cfg info  
-      //                                                    Pmispredicts
-      miss_rate += (p                 * p *          ((i.second.misses) / (i.second.misses)+(i.second.hits)));
-      errs() << "miss rate for block : " << static_cast<int>(i.second.misses) << " of " << static_cast<int>(i.second.misses + i.second.hits) << "\n";
+      auto key = reinterpret_cast<uint64_t>(&i) ^ reinterpret_cast<uint64_t>(j);
+      auto br = probabilityTable.find(key);
+      errs() << "Branch " << &i << " to " << j << ": " << br->second.hits << "/" << br->second.misses + br->second.hits << "\n";
+      miss_rate += static_cast<double>(br->second.prob_prev * br->second.prob_cur * (static_cast<double>(br->second.misses) / static_cast<double>(br->second.misses + br->second.hits)));
     }
   }
 
-  errs() << "misses: " << misses << "\n";
-  errs() << "hits: " << hits << "\n";
-  errs() << "Miss Rate (%): " << static_cast<int>((misses/ (misses + hits)) * 100) << "\n";
-
-
-  errs() << "Miss Rate (%) (NEW): " << static_cast<int>(0.50 * (miss_rate)) << "\n";
+  errs() << "Miss Rate (%) (NEW): " << (miss_rate) << "\n";
   return false;
 }
 

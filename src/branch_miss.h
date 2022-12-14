@@ -25,6 +25,10 @@ struct ps{
   uint64_t n_executes{};
   // the number of times this branch was inspected
   uint64_t n_arrives{};
+  // Probability according to CFG of next branch being executed
+  double prob_cur{};
+  // Probability of previous current branch having been executed
+  double prob_prev{};
 };
 
 struct Probability {
@@ -52,8 +56,8 @@ struct MCPredictionMissRate : public FunctionPass {
   MCPredictionMissRate() : FunctionPass(ID) {}
   bool runOnFunction(Function &F) override;
 
-  void saturating2Bit(const BasicBlock* cur,  uint32_t count) noexcept;
-  void correlation(const BasicBlock* cur, uint32_t count) noexcept;
+  bool saturating2Bit(const BasicBlock* cur,  uint32_t count) noexcept;
+  bool correlation(const BasicBlock* cur, uint32_t count) noexcept;
 
   double hits;
   double misses;
