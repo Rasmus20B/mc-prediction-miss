@@ -213,16 +213,10 @@ bool MCPredictionMissRate::runOnFunction(Function &F) {
 
     prev = const_cast<BasicBlock*>(cur);
     cur = next;
-
-    // If the terminating basic block is reached, increment the loop_count
-    //
   }
   double miss_rate = 0.0f;
   auto Prob = BranchProbabilityInfo();
   for(auto &i : Blocks) {
-    if(successors(&i).empty()) {
-      continue;
-    }
     for(auto j : successors(&i)) {
       // The probability from the cfg info  
       auto key = reinterpret_cast<uint64_t>(&i) ^ reinterpret_cast<uint64_t>(j);
