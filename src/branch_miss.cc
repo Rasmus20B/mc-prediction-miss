@@ -1,4 +1,6 @@
 #include "branch_miss.h"
+#include <chrono>
+#include <random>
 #include <type_traits>
 
 using namespace llvm;
@@ -116,10 +118,12 @@ bool MCPredictionMissRate::saturating2Bit(const BasicBlock* cur, uint32_t count)
   return true;
 }
 
-#define CHECKS 1000000
+#define CHECKS 100000
 bool MCPredictionMissRate::runOnFunction(Function &F) {
   std::uniform_real_distribution<float>  Distribution(0.0, 1.0);
-  std::default_random_engine Generator;
+  std::default_random_engine Generator(std::chrono::system_clock::now().time_since_epoch().count());
+
+  srand(time(0));
  
   std::unordered_map<int, ps> probabilityTable;
 
@@ -134,7 +138,7 @@ bool MCPredictionMissRate::runOnFunction(Function &F) {
   // loop until you reach the full checks
   while(loop_count < CHECKS) {
     
-    auto rand = Distribution(Generator);
+    float rand = Distribution(Generator);
 
     // check if it's a terminating block
     if(auto Succs = successors(cur).empty()) {
@@ -213,19 +217,25 @@ bool MCPredictionMissRate::runOnFunction(Function &F) {
     // If the terminating basic block is reached, increment the loop_count
     //
   }
-  double miss_rate = 1.0f;
+  double miss_rate = 0.0f;
   auto Prob = BranchProbabilityInfo();
   for(auto &i : Blocks) {
+    if(successors(&i).empty()) {
+      continue;
+    }
     for(auto j : successors(&i)) {
       // The probability from the cfg info  
       auto key = reinterpret_cast<uint64_t>(&i) ^ reinterpret_cast<uint64_t>(j);
       auto br = probabilityTable.find(key);
+      if(br->second.hits == br->second.hits + br->second.misses) {
+        continue;
+      }
       errs() << "Branch " << &i << " to " << j << ": " << br->second.hits << "/" << br->second.misses + br->second.hits << "\n";
       miss_rate += static_cast<double>(br->second.prob_prev * br->second.prob_cur * (static_cast<double>(br->second.misses) / static_cast<double>(br->second.misses + br->second.hits)));
     }
   }
 
-  errs() << "Miss Rate (%) (NEW): " << (miss_rate) << "\n";
+  errs() << "Miss Rate (%) : " << (miss_rate) << "\n";
   return false;
 }
 
