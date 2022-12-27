@@ -194,7 +194,9 @@ bool MCPredictionMissRate::runOnFunction(Function &F) {
       auto tmp = ps();
       
       tmp.prob_cur = p;
+      if(pp == 0) pp = 1;
       tmp.prob_prev = pp;
+
 
       auto ps_found = probabilityTable.find(key);     
       if(ps_found == probabilityTable.end()) {
@@ -214,7 +216,7 @@ bool MCPredictionMissRate::runOnFunction(Function &F) {
     prev = const_cast<BasicBlock*>(cur);
     cur = next;
   }
-  double miss_rate = 0.0f;
+  double miss_rate = 0.000001f;
   auto Prob = BranchProbabilityInfo();
   for(auto &i : Blocks) {
     for(auto j : successors(&i)) {
@@ -225,6 +227,7 @@ bool MCPredictionMissRate::runOnFunction(Function &F) {
         continue;
       }
       errs() << "Branch " << &i << " to " << j << ": " << br->second.hits << "/" << br->second.misses + br->second.hits << "\n";
+      errs() << "Prob cur:" << br->second.prob_cur << ". Prob Prev:  " << br->second.prob_prev << "\n";
       miss_rate += static_cast<double>(br->second.prob_prev * br->second.prob_cur * (static_cast<double>(br->second.misses) / static_cast<double>(br->second.misses + br->second.hits)));
     }
   }
