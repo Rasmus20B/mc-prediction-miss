@@ -3,6 +3,8 @@
 #include <random>
 #include <type_traits>
 
+#include <omp.h>
+
 using namespace llvm;
   
 bool MCPredictionMissRate::correlation(const BasicBlock* cur, uint32_t count) noexcept {
@@ -69,12 +71,6 @@ bool MCPredictionMissRate::saturating2Bit(const BasicBlock* cur, uint32_t count)
   // The total mis-prediction rate is for each block i for each of its successors j
   // map.find(i->j) = mis-prediction/rate information of i to j
 
-  auto bbprob = blockProbs.find(cur);
-  if((bbprob == blockProbs.end())) {
-    blockProbs.insert(std::pair<const BasicBlock *, Probability>(cur, Probability()));
-  }
-  bbprob = blockProbs.find(cur);
-
   auto found = satBHT.find(cur);
   if((found == satBHT.end())) {
     satBHT.insert(std::pair<const BasicBlock*, int>(cur, 4));
@@ -82,16 +78,12 @@ bool MCPredictionMissRate::saturating2Bit(const BasicBlock* cur, uint32_t count)
   found = satBHT.find(cur);
 // If the branch is taken 'actual' and predicted to be strong or weak TAKEN
   if(!count && found->second > 1) {
-    hits++; 
-    bbprob->second.hits++;
     if(found->second < 3){
       found->second++;
     }
     return true;
   // if the branch is not taken 'actual' and predicted to be strong or weak TAKEN
   } else if(count == 1 && (found->second > 1)) {
-    misses++;
-    bbprob->second.misses++;
     if(found->second){
       found->second--;
     }
@@ -102,13 +94,9 @@ bool MCPredictionMissRate::saturating2Bit(const BasicBlock* cur, uint32_t count)
     if(found->second){
       found->second--;
     }
-    bbprob->second.hits++;
-    hits++;
     return true;
   // if the branch is taken 'actual' and predicted to be strog or weak NOT TAKEN
   } else if (!count && found->second <2) {
-    misses++;
-    bbprob->second.misses++;
     if(found->second < 3){
       found->second++;
     }
@@ -164,8 +152,7 @@ bool MCPredictionMissRate::runOnFunction(Function &F) {
     // Use that random number to select a successor "Actual"
     for(auto succ : successors(cur)) {
       auto edgeProbs = prob.getEdgeProbability(cur, succ);
-      float end; 
-      end = start + static_cast<float>(edgeProbs.getNumerator()) / (edgeProbs.getDenominator());
+      float end = start + static_cast<float>(edgeProbs.getNumerator()) / (edgeProbs.getDenominator());
       // errs() << start << " ... " << end << "\n";
       // errs() <<  " rand =  " << rand << "\n";
       if(rand >= start && rand < end) {

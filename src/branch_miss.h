@@ -31,21 +31,12 @@ struct ps{
   double prob_prev{};
 };
 
-struct Probability {
-  double hits = 1;
-  double misses;
-};
-
 // Used by 2-bit saturating counter
 inline std::unordered_map<const BasicBlock*, uint32_t> satBHT;
 
 // Used by Two-level adaptive correlation-based scheme
 inline std::unordered_map<const BasicBlock*, uint8_t> corBHT;
 inline std::unordered_map<uint8_t, uint32_t> corBPT;
-
-// Keep track of mis-prediction rate per branch
-inline std::unordered_map<const BasicBlock*, Probability> blockProbs;
-
 
 // Keep track of how many times a basic block has been run
 // used in final calculation to compare against how many times the program itself has been run
