@@ -7,6 +7,8 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
+#include "predictor.h"
+
 #include <random> 
 #include <unordered_map> 
 
@@ -31,12 +33,7 @@ struct ps{
   double prob_prev{};
 };
 
-// Used by 2-bit saturating counter
-inline std::unordered_map<const BasicBlock*, uint32_t> satBHT;
 
-// Used by Two-level adaptive correlation-based scheme
-inline std::unordered_map<const BasicBlock*, uint8_t> corBHT;
-inline std::unordered_map<uint8_t, uint32_t> corBPT;
 
 // Keep track of how many times a basic block has been run
 // used in final calculation to compare against how many times the program itself has been run

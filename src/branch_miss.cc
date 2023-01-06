@@ -3,113 +3,14 @@
 #include <random>
 #include <type_traits>
 
-#include <omp.h>
-
 using namespace llvm;
   
-bool MCPredictionMissRate::correlation(const BasicBlock* cur, uint32_t count) noexcept {
-
-  // take the address of the current block
-  auto history = corBHT.find(cur);
-  if((history == corBHT.end())) {
-    corBHT.insert(std::pair<const BasicBlock*, int>(cur, 0b11111111));
-  }
-  // use the address to index the history table
-  history = corBHT.find(cur);
-  // Use the history itself (0110101010) as the index to a saturating counter
-  auto res = corBPT.find(history->second);
-  if((res == corBPT.end())) {
-    corBPT.insert(std::pair<uint8_t, uint32_t>(history->second, 4));
-  }
-  res = corBPT.find(history->second);
-
-  // after prediction, check actual outcome
-  // if branch is actually taken, and predicted to be Taken
-  if(!count && res->second > 1) {
-    hits++;
-    //update the saturation counter
-    if(res->second < 3)
-      res->second++;
-
-    //update the history value
-    // shift the history to the left, and add the outcome (1, 0) to the least significant bit
-    history->second = (history->second << 1) | 0b00000001;
-    return true;
-  }
-  // if branch is actually taken but not predicted to be taken
-  if(!count && res->second < 2) {
-    misses++;
-    if(res->second < 3)
-      res->second++;
-    history->second = (history->second << 1) | 0b00000001;
-    return false;
-  }
-  // if branch is not taken but predicted to be taken
-  if(count && res->second > 1) {
-    misses++;
-    if(res->second > 0)
-      res->second--;
-    history->second = (history->second << 1) ;
-    return false;
-  }
-  // if branch is not taken and is not predicted to be taken
-  if(count && res->second < 2) {
-    hits++;
-    if(res->second > 0)
-      res->second--;
-    history->second = (history->second) ;
-    return true;
-  } 
-
-  return true;
-
-}
-
-bool MCPredictionMissRate::saturating2Bit(const BasicBlock* cur, uint32_t count) noexcept {
-
-  // In the counter, keep track of the successor. The rate is per successor per original.
-  // The total mis-prediction rate is for each block i for each of its successors j
-  // map.find(i->j) = mis-prediction/rate information of i to j
-
-  auto found = satBHT.find(cur);
-  if((found == satBHT.end())) {
-    satBHT.insert(std::pair<const BasicBlock*, int>(cur, 4));
-  }
-  found = satBHT.find(cur);
-// If the branch is taken 'actual' and predicted to be strong or weak TAKEN
-  if(!count && found->second > 1) {
-    if(found->second < 3){
-      found->second++;
-    }
-    return true;
-  // if the branch is not taken 'actual' and predicted to be strong or weak TAKEN
-  } else if(count == 1 && (found->second > 1)) {
-    if(found->second){
-      found->second--;
-    }
-    return false;
-  // if the branch is not taken 'actual' and predicted to be strong or weak NOT TAKEN
-  } else if (count == 1 && found->second < 2) {
-    // check for underflow
-    if(found->second){
-      found->second--;
-    }
-    return true;
-  // if the branch is taken 'actual' and predicted to be strog or weak NOT TAKEN
-  } else if (!count && found->second <2) {
-    if(found->second < 3){
-      found->second++;
-    }
-    return false;
-  }
-
-  return true;
-}
-
 #define CHECKS 100000
 bool MCPredictionMissRate::runOnFunction(Function &F) {
+  
   std::uniform_real_distribution<float>  Distribution(0.0, 1.0);
   std::default_random_engine Generator(std::chrono::system_clock::now().time_since_epoch().count());
+
 
   srand(time(0));
  
@@ -126,6 +27,7 @@ bool MCPredictionMissRate::runOnFunction(Function &F) {
   // loop until you reach the full checks
   while(loop_count < CHECKS) {
     
+    Correlation pred{};
     float rand = Distribution(Generator);
 
     // check if it's a terminating block
@@ -164,7 +66,7 @@ bool MCPredictionMissRate::runOnFunction(Function &F) {
       start = end;
     }
 
-    auto res = correlation(cur, count);
+    auto res = pred.predict(cur, count);
 
     // errs() << prev << " == " << cur << "\n";
 
