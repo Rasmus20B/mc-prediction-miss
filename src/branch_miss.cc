@@ -1,20 +1,33 @@
-#include "branch_miss.h"
 #include <chrono>
 #include <random>
 #include <type_traits>
 
+#include "branch_miss.h"
+
 using namespace llvm;
-  
-#define CHECKS 100000
-bool MCPredictionMissRate::runOnFunction(Function &F) {
-  
+
+inline float getRand() {
   std::uniform_real_distribution<float>  Distribution(0.0, 1.0);
   std::default_random_engine Generator(std::chrono::system_clock::now().time_since_epoch().count());
+  return Distribution(Generator);
+}
 
+float MCPredictionMissRate::getMissRate(const BasicBlock& bb) {
+  float res;
+  for(auto j : successors(&bb)) {
+    // The probability from the cfg info  
+    auto key = reinterpret_cast<uint64_t>(&bb) ^ reinterpret_cast<uint64_t>(j);
+    auto br = probabilityTable.find(key);
+    if(br->second.hits == br->second.hits + br->second.misses) {
+      continue;
+    }
+    res = static_cast<double>(br->second.prob_prev * br->second.prob_cur * (static_cast<double>(br->second.misses) / static_cast<double>(br->second.misses + br->second.hits)));
+  }
+  return res;
+}
+  
+bool MCPredictionMissRate::runOnFunction(Function &F) {
 
-  srand(time(0));
- 
-  std::unordered_map<int, ps> probabilityTable;
 
   errs() << "===/ Scanning Function: " << F.getName() << "\n";
 
@@ -25,10 +38,11 @@ bool MCPredictionMissRate::runOnFunction(Function &F) {
   auto cur = &Blocks.front();
   BasicBlock *prev = const_cast<BasicBlock*>(cur);
   // loop until you reach the full checks
-  while(loop_count < CHECKS) {
+  while(loop_count < tests) {
+
+    auto rand = getRand();
     
     Correlation pred{};
-    float rand = Distribution(Generator);
 
     // check if it's a terminating block
     if(auto Succs = successors(cur).empty()) {
@@ -107,23 +121,16 @@ bool MCPredictionMissRate::runOnFunction(Function &F) {
   }
   double miss_rate = 0.000001f;
   auto Prob = BranchProbabilityInfo();
-  for(auto &i : Blocks) {
-    for(auto j : successors(&i)) {
-      // The probability from the cfg info  
-      auto key = reinterpret_cast<uint64_t>(&i) ^ reinterpret_cast<uint64_t>(j);
-      auto br = probabilityTable.find(key);
-      if(br->second.hits == br->second.hits + br->second.misses) {
-        continue;
-      }
-      errs() << "Branch " << &i << " to " << j << ": " << br->second.hits << "/" << br->second.misses + br->second.hits << "\n";
-      errs() << "Prob cur:" << br->second.prob_cur << ". Prob Prev:  " << br->second.prob_prev << "\n";
-      miss_rate += static_cast<double>(br->second.prob_prev * br->second.prob_cur * (static_cast<double>(br->second.misses) / static_cast<double>(br->second.misses + br->second.hits)));
-    }
-  }
 
-  errs() << "Miss Rate (%) : " << (miss_rate) << "\n";
+  auto res = 0.0;
+  for(auto &i : Blocks) {
+    res += getMissRate(i);
+  }
+  errs() << "Miss Rate (%) : " << (res) << "\n";
+
   return false;
 }
+
 
 char MCPredictionMissRate::ID = 0;
 static RegisterPass<MCPredictionMissRate> X("mc-branch-miss", "Monte-Carlo branch prediction miss rate simulation",

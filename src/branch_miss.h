@@ -1,3 +1,5 @@
+#pragma once
+
 #include "llvm/Pass.h"
 #include "llvm/IR/Function.h"
 #include "llvm/Support/raw_ostream.h"
@@ -8,16 +10,14 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
 #include "predictor.h"
+#include "config.h"
 
-#include <random> 
-#include <unordered_map> 
 
 using namespace llvm;
 // a given probability struct:
 // keeps track of the successors of a given basic block
 // keeps track of how many times it hits or misses each of those blocks
 // is related to a basic block
-//
 struct ps{
   // the number of branch prediction hits
   uint64_t hits{};
@@ -47,6 +47,9 @@ struct MCPredictionMissRate : public FunctionPass {
   bool saturating2Bit(const BasicBlock* cur,  uint32_t count) noexcept;
   bool correlation(const BasicBlock* cur, uint32_t count) noexcept;
 
+  float getMissRate(const BasicBlock& bb);
+
+  std::unordered_map<int, ps> probabilityTable;
   double hits;
   double misses;
 

@@ -55,19 +55,11 @@ int main(int argc, char **argv) {
     double v = 0.2;    // Volatility of the underlying (20%)
     double T = 1.0;    // One year until expiry
 
+#define COUNT 200
     // Then we calculate the call/put values
-    double call = call_price(S, K, r, v, T);
-    double put = put_price(S, K, r, v, T);
-
-    // Finally we output the parameters and prices
-    std::cout << "Underlying:      " << S << std::endl;
-    std::cout << "Strike:          " << K << std::endl;
-    std::cout << "Risk-Free Rate:  " << r << std::endl;
-    std::cout << "Volatility:      " << v << std::endl;
-    std::cout << "Maturity:        " << T << std::endl;
-
-    std::cout << "Call Price:      " << call << std::endl;
-    std::cout << "Put Price:       " << put << std::endl;
-
+    for(int i = 0; i < COUNT; i++) {
+      double call = call_price(S, K, r, v, T);
+      double put = put_price(S, K, r, v, T);
+    }
     return 0;
 }

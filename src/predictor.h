@@ -1,4 +1,5 @@
-#include <unordered_map> 
+#pragma once
+
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
@@ -6,7 +7,7 @@ using namespace llvm;
 
 class Predictor {
   public:
-    virtual bool predict() { return true; }
+    virtual bool predict(const BasicBlock* cur, uint32_t count) { return true; }
 };
 
 class Saturating2Bit : public Predictor {
