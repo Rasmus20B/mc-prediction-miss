@@ -47,11 +47,13 @@ struct MCPredictionMissRate : public FunctionPass {
   static char ID;
   MCPredictionMissRate() : FunctionPass(ID) {}
   bool runOnFunction(Function &F) override;
+  bool doInitialization(Module &M) override;
+  bool doFinalization(Module &M) override;
 
   bool saturating2Bit(const BasicBlock* cur,  uint32_t count) noexcept;
   bool correlation(const BasicBlock* cur, uint32_t count) noexcept;
 
-  float getMissRate(const BasicBlock& bb) noexcept;
+  float getBlockMissRate(const BasicBlock& bb) noexcept;
   std::tuple<const BasicBlock*, uint32_t> getSuccessor(const BasicBlock& bb, const BranchProbabilityInfo& bp) noexcept;
   inline BlockType isTerminatingBlock(const BasicBlock& bb, const BasicBlock& front) noexcept;
 

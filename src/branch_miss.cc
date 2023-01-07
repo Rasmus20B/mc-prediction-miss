@@ -3,12 +3,15 @@
 #include <tuple>
 #include <type_traits>
 
+#include <mpi.h>
+#include <x86_64-pc-linux-gnu/mpi.h>
+
 #include "branch_miss.h"
 #include "llvm/Analysis/BranchProbabilityInfo.h"
 
 using namespace llvm;
 
-inline float getRand() noexcept {
+inline double getRand() noexcept {
   std::uniform_real_distribution<float>  Distribution(0.0, 1.0);
   std::default_random_engine Generator(std::chrono::system_clock::now().time_since_epoch().count());
   return Distribution(Generator);
@@ -28,7 +31,7 @@ BlockType MCPredictionMissRate::isTerminatingBlock(const BasicBlock& bb, const B
   return BlockType::NORM;
 }
 
-float MCPredictionMissRate::getMissRate(const BasicBlock& bb) noexcept {
+float MCPredictionMissRate::getBlockMissRate(const BasicBlock& bb) noexcept {
   float res{};
   for(auto j : successors(&bb)) {
     // Index into probability for a given pair of blocks is &B1 XOR &B2
@@ -62,10 +65,20 @@ std::tuple<const BasicBlock*, uint32_t> MCPredictionMissRate::getSuccessor(const
   return std::make_tuple(nullptr, count);
 }
 
+bool MCPredictionMissRate::doInitialization(Module &M) {
+  MPI_Init(nullptr, nullptr);
+  return true;
+}
+
+bool MCPredictionMissRate::doFinalization(Module &M) {
+  MPI_Finalize();
+  return true;
+}
 bool MCPredictionMissRate::runOnFunction(Function &F) {
 
   const auto &Blocks = F.getBasicBlockList();
   int loop_count{};
+  auto res = 0.0;
   auto cur = &Blocks.front();
   BasicBlock *prev = const_cast<BasicBlock*>(cur);
 
@@ -83,8 +96,8 @@ bool MCPredictionMissRate::runOnFunction(Function &F) {
 
     auto prob = BranchProbabilityInfo();
     auto [next, count] = getSuccessor(*cur, prob);
-    
-    auto res = pred.predict(cur, count);
+
+    auto pred_res = pred.predict(cur, count);
     // update the map of cur -> successor branch info
     for(auto succ : successors(cur)) {
       // Get the current branch to successor probability
@@ -108,22 +121,19 @@ bool MCPredictionMissRate::runOnFunction(Function &F) {
       }
       auto ps = probabilityTable.find(key);
       ps->second.n_arrives++;
-      if(next == succ && res) {
+      if(next == succ && pred_res) {
         ps->second.hits++;
-      } else if (next != succ && !res) {
+      } else if (next != succ && !pred_res) {
         ps->second.misses++;
       }
-
     }
     prev = const_cast<BasicBlock*>(cur);
     cur = next;
   }
-  auto res = 0.0;
   for(auto &i : Blocks) {
-    res += getMissRate(i);
+    res += getBlockMissRate(i);
   }
   errs() << "Miss Rate (%) : " << (res) << "\n";
-
   return false;
 }
 
