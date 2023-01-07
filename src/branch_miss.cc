@@ -45,13 +45,13 @@ float MCPredictionMissRate::getMissRate(const BasicBlock& bb) noexcept {
   return res;
 }
 
-std::tuple<const BasicBlock*, uint32_t> MCPredictionMissRate::getSuccessor(const BasicBlock* bb, const BranchProbabilityInfo* bp) noexcept {
+std::tuple<const BasicBlock*, uint32_t> MCPredictionMissRate::getSuccessor(const BasicBlock& bb, const BranchProbabilityInfo& bp) noexcept {
   auto start = 0.0f;
   auto count = 0;
   auto rand = getRand();
   // Use that random number to select a successor "Actual"
-  for(auto succ : successors(bb)) {
-    auto edgeProbs = bp->getEdgeProbability(bb, succ);
+  for(auto succ : successors(&bb)) {
+    auto edgeProbs = bp.getEdgeProbability(&bb, succ);
     float end = start + static_cast<float>(edgeProbs.getNumerator()) / (edgeProbs.getDenominator());
     if(rand >= start && rand < end) {
       return std::make_tuple(succ, count);
@@ -82,8 +82,7 @@ bool MCPredictionMissRate::runOnFunction(Function &F) {
     }
 
     auto prob = BranchProbabilityInfo();
-
-    auto [next, count] = getSuccessor(cur, &prob);
+    auto [next, count] = getSuccessor(*cur, prob);
     
     auto res = pred.predict(cur, count);
     // update the map of cur -> successor branch info
@@ -127,7 +126,6 @@ bool MCPredictionMissRate::runOnFunction(Function &F) {
 
   return false;
 }
-
 
 char MCPredictionMissRate::ID = 0;
 static RegisterPass<MCPredictionMissRate> X("mc-branch-miss", "Monte-Carlo branch prediction miss rate simulation",
