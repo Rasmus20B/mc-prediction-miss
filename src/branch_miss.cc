@@ -6,84 +6,77 @@
 
 using namespace llvm;
 
-inline float getRand() {
+inline float getRand() noexcept {
   std::uniform_real_distribution<float>  Distribution(0.0, 1.0);
   std::default_random_engine Generator(std::chrono::system_clock::now().time_since_epoch().count());
   return Distribution(Generator);
 }
 
-float MCPredictionMissRate::getMissRate(const BasicBlock& bb) {
+BlockType MCPredictionMissRate::isTerminatingBlock(const BasicBlock& bb, const BasicBlock& front) noexcept {
+  if(auto Succs = successors(&bb).empty()) {
+    // If the function only has a single basic block, then simply return false. We don't care about it
+    if(&bb == &front) {
+      errs() << "No usable basic blocks in function.\n";
+      return BlockType::EMPTY;
+      // else if current block isn't the first block, it's a regular terminating block. Increase the looop count and go back to the start of the function
+    } else { 
+      return BlockType::TERM;
+    }
+  }
+  return BlockType::NORM;
+}
+
+float MCPredictionMissRate::getMissRate(const BasicBlock& bb) noexcept {
   float res;
   for(auto j : successors(&bb)) {
-    // The probability from the cfg info  
+    // Index into probability for a given pair of blocks is &B1 XOR &B2
     auto key = reinterpret_cast<uint64_t>(&bb) ^ reinterpret_cast<uint64_t>(j);
     auto br = probabilityTable.find(key);
     if(br->second.hits == br->second.hits + br->second.misses) {
       continue;
     }
-    res = static_cast<double>(br->second.prob_prev * br->second.prob_cur * (static_cast<double>(br->second.misses) / static_cast<double>(br->second.misses + br->second.hits)));
-  }
+    res = static_cast<double>(br->second.prob_prev *    /* Pbb(i) */
+                              br->second.prob_cur *     /* Π(i)(j) */
+                              /* Pmis-predict(i)(j) */
+                              (static_cast<double>(br->second.misses) / static_cast<double>(br->second.misses + br->second.hits)));   }
   return res;
 }
   
 bool MCPredictionMissRate::runOnFunction(Function &F) {
 
-
-  errs() << "===/ Scanning Function: " << F.getName() << "\n";
-
   const auto &Blocks = F.getBasicBlockList();
-
   int loop_count{};
-
   auto cur = &Blocks.front();
   BasicBlock *prev = const_cast<BasicBlock*>(cur);
-  // loop until you reach the full checks
+
   while(loop_count < tests) {
-
-    auto rand = getRand();
-    
     Correlation pred{};
-
     // check if it's a terminating block
-    if(auto Succs = successors(cur).empty()) {
-    // If the function only has a single basic block, then simply return false. We don't care about it
-      if(cur == &Blocks.front()) {
-        errs() << "No usable basic blocks in function.\n";
-        return false;
-        // else if current block isn't the first block, it's a regular terminating block. Increase the looop count and go back to the start of the function
-      } else { 
-        loop_count++;
-        cur = &Blocks.front();
-        continue;
-      }
+    auto tb = isTerminatingBlock(*cur, Blocks.front());
+    if(tb == BlockType::EMPTY){
+      return false;
+    } else if(tb == BlockType::TERM) {
+      loop_count++;
+      cur = &Blocks.front();
+      continue;
     }
-
     auto start = 0.0f;
     auto next = cur;
-
     auto count = 0;
-
+    auto rand = getRand();
     auto prob = BranchProbabilityInfo();
-    // Generate a random number to use for this block as the definite point in a probability distribution
     // Use that random number to select a successor "Actual"
     for(auto succ : successors(cur)) {
       auto edgeProbs = prob.getEdgeProbability(cur, succ);
       float end = start + static_cast<float>(edgeProbs.getNumerator()) / (edgeProbs.getDenominator());
-      // errs() << start << " ... " << end << "\n";
-      // errs() <<  " rand =  " << rand << "\n";
       if(rand >= start && rand < end) {
         next = succ;
-        // errs() << "chose basic block : " << count << "\n";
         break;
       }
       count++;
       start = end;
     }
-
     auto res = pred.predict(cur, count);
-
-    // errs() << prev << " == " << cur << "\n";
-
     // update the map of cur -> successor branch info
     for(auto succ : successors(cur)) {
       // Get the current branch to successor probability
@@ -100,7 +93,6 @@ bool MCPredictionMissRate::runOnFunction(Function &F) {
       if(pp == 0) pp = 1;
       tmp.prob_prev = pp;
 
-
       auto ps_found = probabilityTable.find(key);     
       if(ps_found == probabilityTable.end()) {
         probabilityTable.insert(std::make_pair(key, tmp));
@@ -115,13 +107,9 @@ bool MCPredictionMissRate::runOnFunction(Function &F) {
       }
 
     }
-
     prev = const_cast<BasicBlock*>(cur);
     cur = next;
   }
-  double miss_rate = 0.000001f;
-  auto Prob = BranchProbabilityInfo();
-
   auto res = 0.0;
   for(auto &i : Blocks) {
     res += getMissRate(i);

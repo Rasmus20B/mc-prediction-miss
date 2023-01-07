@@ -33,7 +33,11 @@ struct ps{
   double prob_prev{};
 };
 
-
+enum BlockType {
+  NORM,
+  TERM,
+  EMPTY
+};
 
 // Keep track of how many times a basic block has been run
 // used in final calculation to compare against how many times the program itself has been run
@@ -47,7 +51,8 @@ struct MCPredictionMissRate : public FunctionPass {
   bool saturating2Bit(const BasicBlock* cur,  uint32_t count) noexcept;
   bool correlation(const BasicBlock* cur, uint32_t count) noexcept;
 
-  float getMissRate(const BasicBlock& bb);
+  float getMissRate(const BasicBlock& bb) noexcept;
+  inline BlockType isTerminatingBlock(const BasicBlock& bb, const BasicBlock& front) noexcept;
 
   std::unordered_map<int, ps> probabilityTable;
   double hits;
