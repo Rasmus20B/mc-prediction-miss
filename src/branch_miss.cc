@@ -13,7 +13,7 @@ inline float getRand() noexcept {
 }
 
 BlockType MCPredictionMissRate::isTerminatingBlock(const BasicBlock& bb, const BasicBlock& front) noexcept {
-  if(auto Succs = successors(&bb).empty()) {
+  if(successors(&bb).empty()) {
     // If the function only has a single basic block, then simply return false. We don't care about it
     if(&bb == &front) {
       errs() << "No usable basic blocks in function.\n";
