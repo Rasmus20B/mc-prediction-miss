@@ -45,7 +45,7 @@ float MCPredictionMissRate::getMissRate(const BasicBlock& bb) noexcept {
   return res;
 }
 
-std::tuple<const BasicBlock*, uint32_t> MCPredictionMissRate::getSuccessor(const BasicBlock* bb, const BranchProbabilityInfo* bp) noexcept {
+std::tuple<const BasicBlock*, uint32_t> getSuccessor(const BasicBlock* bb, BranchProbabilityInfo* bp) noexcept {
   auto start = 0.0f;
   auto count = 0;
   auto rand = getRand();
@@ -83,6 +83,7 @@ bool MCPredictionMissRate::runOnFunction(Function &F) {
 
     auto prob = BranchProbabilityInfo();
 
+    errs() << "gets here\n";
     auto [next, count] = getSuccessor(cur, &prob);
     
     auto res = pred.predict(cur, count);

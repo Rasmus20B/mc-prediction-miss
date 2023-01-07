@@ -52,6 +52,7 @@ struct MCPredictionMissRate : public FunctionPass {
   bool correlation(const BasicBlock* cur, uint32_t count) noexcept;
 
   float getMissRate(const BasicBlock& bb) noexcept;
+  std::tuple<const BasicBlock*, uint32_t> getSuccessor(const BasicBlock* bb, const BranchProbabilityInfo* bp) noexcept;
   inline BlockType isTerminatingBlock(const BasicBlock& bb, const BasicBlock& front) noexcept;
 
   std::unordered_map<int, ps> probabilityTable;
