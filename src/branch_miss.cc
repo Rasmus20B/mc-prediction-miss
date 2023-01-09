@@ -11,7 +11,7 @@
 
 using namespace llvm;
 
-inline auto getKey(uint32_t x, uint32_t y) -> uint32_t { return x ^ y; }
+inline auto getKey(auto x, auto y) noexcept -> auto { return x ^ y; }
 
 inline auto getRand() noexcept -> double {
   std::uniform_real_distribution<float>  Distribution(0.0, 1.0);
@@ -37,7 +37,7 @@ auto MCPredictionMissRate::getBlockMissRate(const BasicBlock& bb) noexcept -> fl
   auto res { 0.0 };
   for(auto j : successors(&bb)) {
     // Index into probability for a given pair of blocks is &B1 XOR &B2
-    auto key = reinterpret_cast<uint64_t>(&bb) ^ reinterpret_cast<uint64_t>(j);
+    auto key = getKey(reinterpret_cast<uint64_t>(&bb), reinterpret_cast<uint64_t>(j));
     auto br = probabilityTable.find(key);
     if(br->second.hits == br->second.hits + br->second.misses) {
       continue;
@@ -112,7 +112,7 @@ auto MCPredictionMissRate::runOnFunction(Function &F) -> bool {
       auto edgeProbsPrev = prob.getEdgeProbability(prev, cur);
       auto pp = static_cast<float>(edgeProbsPrev.getNumerator()) / (edgeProbsPrev.getDenominator());
 
-      auto key = reinterpret_cast<uint64_t>(cur) ^ reinterpret_cast<uint64_t>(succ);
+      auto key = getKey(reinterpret_cast<uint64_t>(cur), reinterpret_cast<uint64_t>(succ));
       auto tmp = ps();
       
       tmp.prob_cur = p;
