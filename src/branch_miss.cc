@@ -2,16 +2,19 @@
 
 using namespace llvm;
 
-[[gnu::pure]]
+[[gnu::pure, nodiscard]]
 inline auto getKey(auto x, auto y) noexcept -> auto { return x ^ y; }
 
+[[nodiscard]]
 inline auto getRand() noexcept -> double {
   std::uniform_real_distribution<float>  Distribution(0.0, 1.0);
   std::default_random_engine Generator(std::chrono::system_clock::now().time_since_epoch().count());
   return Distribution(Generator);
 }
 
+[[nodiscard]]
 auto MCPredictionMissRate::isTerminatingBlock(const BasicBlock& bb, const BasicBlock& front) noexcept -> BlockType {
+
   if(successors(&bb).empty()) {
     // If the function only has a single basic block, then simply return false. We don't care about it
     if(&bb == &front) {
@@ -25,6 +28,7 @@ auto MCPredictionMissRate::isTerminatingBlock(const BasicBlock& bb, const BasicB
   return BlockType::NORM;
 }
 
+[[nodiscard]]
 auto MCPredictionMissRate::getBlockMissRate(const BasicBlock& bb, const std::unordered_map<int, ps> pb) noexcept -> float {
   auto res { 0.0 };
   for(auto j : successors(&bb)) {
@@ -42,6 +46,7 @@ auto MCPredictionMissRate::getBlockMissRate(const BasicBlock& bb, const std::uno
   return res;
 }
 
+[[nodiscard("Chosen successor block is to be compared with predicted successor block.")]]
 auto MCPredictionMissRate::getActualSuccessor(const BasicBlock& bb, const BranchProbabilityInfo& bp) noexcept -> std::tuple<const BasicBlock*, uint32_t> {
   auto start = 0.0f;
   auto count = 0;
@@ -78,6 +83,8 @@ auto MCPredictionMissRate::runOnFunction(Function &F) -> bool {
 
   MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
   MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+
+  [[likely]]
   if(world_rank != 0) {
     auto res = 0.0;
     std::unordered_map<int, ps> probabilityTable;

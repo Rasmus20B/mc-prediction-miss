@@ -23,10 +23,11 @@
 
 
 using namespace llvm;
-// a given probability struct:
-// keeps track of the successors of a given basic block
-// keeps track of how many times it hits or misses each of those blocks
-// is related to a basic block
+/* a given probability struct:
+   keeps track of the successors of a given basic block
+   keeps track of how many times it hits or misses each of those blocks
+   is related to a basic block */
+
 struct ps{
   // the number of branch prediction hits
   uint64_t hits{};
