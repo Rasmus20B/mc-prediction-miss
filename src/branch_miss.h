@@ -1,6 +1,13 @@
 #pragma once
 
 #include <algorithm> 
+#include <tuple>
+#include <chrono>
+#include <iostream> 
+#include <numeric>
+#include <random>
+
+#include <mpi.h>
 
 #include "llvm/Pass.h"
 #include "llvm/IR/Function.h"

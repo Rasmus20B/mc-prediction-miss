@@ -1,14 +1,7 @@
-#include <chrono>
-#include <iostream> 
-#include <numeric>
-#include <random>
-#include <tuple>
-#include <type_traits>
 
-#include <mpi.h>
-#include <x86_64-pc-linux-gnu/mpi.h>
 
 #include "branch_miss.h"
+#include <x86_64-pc-linux-gnu/mpi.h>
 
 
 using namespace llvm;
@@ -26,7 +19,7 @@ auto MCPredictionMissRate::isTerminatingBlock(const BasicBlock& bb, const BasicB
   if(successors(&bb).empty()) {
     // If the function only has a single basic block, then simply return false. We don't care about it
     if(&bb == &front) {
-      errs() << "No usable basic blocks in function.\n";
+      dbgs() << "No usable basic blocks in function.\n";
       return BlockType::EMPTY;
       // else if current block isn't the first block, it's a regular terminating block. Increase the looop count and go back to the start of the function
     } else { 
@@ -71,6 +64,7 @@ auto MCPredictionMissRate::getActualSuccessor(const BasicBlock& bb, const Branch
 }
 
 auto MCPredictionMissRate::doInitialization(Module &M) -> bool {
+  MPI_Init(nullptr, nullptr);
   return true;
 }
 
@@ -86,17 +80,18 @@ auto MCPredictionMissRate::runOnFunction(Function &F) -> bool {
   auto cur = &Blocks.front();
   BasicBlock *prev = const_cast<BasicBlock*>(cur);
 
-  MPI_Init(nullptr, nullptr);
   MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
   MPI_Comm_size(MPI_COMM_WORLD, &world_size);
   if(world_rank != 0) {
+    auto res = 0.0;
     std::unordered_map<int, ps> probabilityTable;
     while(loop_count < tests) {
       Correlation pred{};
       // check if it's a terminating block
       auto tb = isTerminatingBlock(*cur, Blocks.front());
       if(tb == BlockType::EMPTY){
-        return false;
+        MPI_Send(&res, 1, MPI_DOUBLE, 0, 1, MPI_COMM_WORLD);
+        return true;
       } else if(tb == BlockType::TERM) {
         loop_count++;
         cur = &Blocks.front();
@@ -140,7 +135,6 @@ auto MCPredictionMissRate::runOnFunction(Function &F) -> bool {
       prev = const_cast<BasicBlock*>(cur);
       cur = next;
     }
-    auto res = 0.0;
     for(auto &i : Blocks) {
       res += getBlockMissRate(i, probabilityTable);
     }
@@ -149,15 +143,14 @@ auto MCPredictionMissRate::runOnFunction(Function &F) -> bool {
     std::vector<double> res_list(world_size);
     for(auto i = 0; i < world_size - 1; ++i) {
       MPI_Recv(&res_list[i], world_size, MPI_DOUBLE, MPI_ANY_SOURCE, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-      errs() << "received " << i << "result = " << res_list[i] << "\n";
+      dbgs() << "received " << i << " with  result = " << res_list[i] << "\n";
     }
 
     auto sum = std::accumulate(res_list.begin(), res_list.end(), 0.0, std::plus<double>());
-    errs() << "total of received results = " << sum << "\n";
     auto final_res = sum / (world_size - 1);
-    errs() << "Miss Rate (%) : " << (final_res) << "\n";
+    dbgs() << "Miss Rate (%) : " << (final_res) << "\n";
   }
-  return false;
+  return true;
 }
 
 char MCPredictionMissRate::ID = 0;
