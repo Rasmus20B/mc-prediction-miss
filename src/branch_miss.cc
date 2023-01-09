@@ -11,13 +11,15 @@
 
 using namespace llvm;
 
-inline double getRand() noexcept {
+inline auto getKey(uint32_t x, uint32_t y) -> uint32_t { return x ^ y; }
+
+inline auto getRand() noexcept -> double {
   std::uniform_real_distribution<float>  Distribution(0.0, 1.0);
   std::default_random_engine Generator(std::chrono::system_clock::now().time_since_epoch().count());
   return Distribution(Generator);
 }
 
-BlockType MCPredictionMissRate::isTerminatingBlock(const BasicBlock& bb, const BasicBlock& front) noexcept {
+auto MCPredictionMissRate::isTerminatingBlock(const BasicBlock& bb, const BasicBlock& front) noexcept -> BlockType {
   if(successors(&bb).empty()) {
     // If the function only has a single basic block, then simply return false. We don't care about it
     if(&bb == &front) {
@@ -31,8 +33,8 @@ BlockType MCPredictionMissRate::isTerminatingBlock(const BasicBlock& bb, const B
   return BlockType::NORM;
 }
 
-float MCPredictionMissRate::getBlockMissRate(const BasicBlock& bb) noexcept {
-  float res{};
+auto MCPredictionMissRate::getBlockMissRate(const BasicBlock& bb) noexcept -> float {
+  auto res { 0.0 };
   for(auto j : successors(&bb)) {
     // Index into probability for a given pair of blocks is &B1 XOR &B2
     auto key = reinterpret_cast<uint64_t>(&bb) ^ reinterpret_cast<uint64_t>(j);
@@ -48,7 +50,7 @@ float MCPredictionMissRate::getBlockMissRate(const BasicBlock& bb) noexcept {
   return res;
 }
 
-std::tuple<const BasicBlock*, uint32_t> MCPredictionMissRate::getActualSuccessor(const BasicBlock& bb, const BranchProbabilityInfo& bp) noexcept {
+auto MCPredictionMissRate::getActualSuccessor(const BasicBlock& bb, const BranchProbabilityInfo& bp) noexcept -> std::tuple<const BasicBlock*, uint32_t> {
   auto start = 0.0f;
   auto count = 0;
   auto rand = getRand();
@@ -65,18 +67,18 @@ std::tuple<const BasicBlock*, uint32_t> MCPredictionMissRate::getActualSuccessor
   return std::make_tuple(nullptr, count);
 }
 
-bool MCPredictionMissRate::doInitialization(Module &M) {
+auto MCPredictionMissRate::doInitialization(Module &M) -> bool {
   MPI_Init(nullptr, nullptr);
   MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
   MPI_Comm_size(MPI_COMM_WORLD, &world_size);
   return true;
 }
 
-bool MCPredictionMissRate::doFinalization(Module &M) {
+auto MCPredictionMissRate::doFinalization(Module &M) -> bool {
   MPI_Finalize();
   return true;
 }
-bool MCPredictionMissRate::runOnFunction(Function &F) {
+auto MCPredictionMissRate::runOnFunction(Function &F) -> bool {
 
   const auto &Blocks = F.getBasicBlockList();
   auto loop_count = 0;
