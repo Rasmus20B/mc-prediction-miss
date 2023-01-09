@@ -1,5 +1,5 @@
 #pragma once 
 
-constexpr auto tests = 2000;
+constexpr auto tests = 200000;
 
 
