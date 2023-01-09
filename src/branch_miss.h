@@ -53,8 +53,6 @@ enum BlockType {
 // used in final calculation to compare against how many times the program itself has been run
 
 struct MCPredictionMissRate : public FunctionPass {
-  static char ID;
-  std::unordered_map<const BasicBlock*, int> runs;
   MCPredictionMissRate() : FunctionPass(ID) {}
   bool runOnFunction(Function &F) override;
   bool doInitialization(Module &M) override;
@@ -67,6 +65,7 @@ struct MCPredictionMissRate : public FunctionPass {
   std::tuple<const BasicBlock*, uint32_t> getActualSuccessor(const BasicBlock& bb, const BranchProbabilityInfo& bp) noexcept;
   inline BlockType isTerminatingBlock(const BasicBlock& bb, const BasicBlock& front) noexcept;
 
-  double hits;
-  double misses;
+  static char ID;
+  std::unordered_map<const BasicBlock*, int> runs;
+
 }; // end of struct Hello

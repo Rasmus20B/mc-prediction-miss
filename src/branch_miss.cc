@@ -89,7 +89,7 @@ auto MCPredictionMissRate::runOnFunction(Function &F) -> bool {
     auto res = 0.0;
     std::unordered_map<int, ps> probabilityTable;
     while(loop_count < tests) {
-      Correlation pred{};
+      Circuit pred{};
       // check if it's a terminating block
       auto tb = isTerminatingBlock(*cur, Blocks.front());
       if(tb == BlockType::EMPTY){
