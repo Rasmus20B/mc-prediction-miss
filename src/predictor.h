@@ -7,12 +7,12 @@ using namespace llvm;
 
 class Predictor {
   public:
-    virtual bool predict(const BasicBlock* cur, uint32_t count) { return true; }
+    virtual auto predict(const BasicBlock* cur, uint32_t count) noexcept -> bool { return true; }
 };
 
 class Saturating2Bit : public Predictor {
   public:
-    bool predict(const BasicBlock* cur, uint32_t count) {  
+    auto predict(const BasicBlock* cur, uint32_t count) noexcept -> bool {  
       auto found = bht.find(cur);
       if((found == bht.end())) { bht.insert(std::pair<const BasicBlock*, int>(cur, 4)); } 
       found = bht.find(cur); // If the branch is taken 'actual' and predicted to be strong or weak TAKEN 
@@ -50,7 +50,7 @@ class Saturating2Bit : public Predictor {
 
 class Correlation : public Predictor {
   public:
-    bool predict(const BasicBlock* cur, uint32_t count) noexcept {
+    auto predict(const BasicBlock* cur, uint32_t count) noexcept -> bool {
 
     // use the address to index the history table
     auto history = corBHT.find(cur);
@@ -72,7 +72,6 @@ class Correlation : public Predictor {
       //update the saturation counter
       if(res->second < 3)
         res->second++;
-
       //update the history value
       // shift the history to the left, and add the outcome (1, 0) to the least significant bit
       history->second = (history->second << 1) | 0b00000001;

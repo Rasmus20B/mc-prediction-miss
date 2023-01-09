@@ -1,5 +1,7 @@
 #pragma once
 
+#include <algorithm> 
+
 #include "llvm/Pass.h"
 #include "llvm/IR/Function.h"
 #include "llvm/Support/raw_ostream.h"
@@ -53,13 +55,10 @@ struct MCPredictionMissRate : public FunctionPass {
   bool saturating2Bit(const BasicBlock* cur,  uint32_t count) noexcept;
   bool correlation(const BasicBlock* cur, uint32_t count) noexcept;
 
-  float getBlockMissRate(const BasicBlock& bb) noexcept;
+  float getBlockMissRate(const BasicBlock& bb, const std::unordered_map<int, ps> pb) noexcept;
   std::tuple<const BasicBlock*, uint32_t> getActualSuccessor(const BasicBlock& bb, const BranchProbabilityInfo& bp) noexcept;
   inline BlockType isTerminatingBlock(const BasicBlock& bb, const BasicBlock& front) noexcept;
 
-  std::unordered_map<int, ps> probabilityTable;
-  int world_rank;
-  int world_size;
   double hits;
   double misses;
 }; // end of struct Hello
