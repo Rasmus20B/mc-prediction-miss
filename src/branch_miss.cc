@@ -4,6 +4,7 @@
 #include <type_traits>
 
 #include <mpi.h>
+#include <x86_64-pc-linux-gnu/mpi.h>
 
 #include "branch_miss.h"
 
@@ -47,7 +48,7 @@ float MCPredictionMissRate::getBlockMissRate(const BasicBlock& bb) noexcept {
   return res;
 }
 
-std::tuple<const BasicBlock*, uint32_t> MCPredictionMissRate::getSuccessor(const BasicBlock& bb, const BranchProbabilityInfo& bp) noexcept {
+std::tuple<const BasicBlock*, uint32_t> MCPredictionMissRate::getActualSuccessor(const BasicBlock& bb, const BranchProbabilityInfo& bp) noexcept {
   auto start = 0.0f;
   auto count = 0;
   auto rand = getRand();
@@ -66,6 +67,8 @@ std::tuple<const BasicBlock*, uint32_t> MCPredictionMissRate::getSuccessor(const
 
 bool MCPredictionMissRate::doInitialization(Module &M) {
   MPI_Init(nullptr, nullptr);
+  MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &world_size);
   return true;
 }
 
@@ -76,7 +79,7 @@ bool MCPredictionMissRate::doFinalization(Module &M) {
 bool MCPredictionMissRate::runOnFunction(Function &F) {
 
   const auto &Blocks = F.getBasicBlockList();
-  int loop_count{};
+  auto loop_count = 0;
   auto res = 0.0;
   auto cur = &Blocks.front();
   BasicBlock *prev = const_cast<BasicBlock*>(cur);
@@ -94,8 +97,9 @@ bool MCPredictionMissRate::runOnFunction(Function &F) {
     }
 
     auto prob = BranchProbabilityInfo();
-    auto [next, count] = getSuccessor(*cur, prob);
-
+    // Get actual successor and if it's the first of second branch (count)
+    auto [next, count] = getActualSuccessor(*cur, prob);
+    // Get predicted successor
     auto pred_res = pred.predict(cur, count);
     // update the map of cur -> successor branch info
     for(auto succ : successors(cur)) {
