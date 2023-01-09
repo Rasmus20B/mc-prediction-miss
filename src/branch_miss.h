@@ -51,10 +51,10 @@ enum BlockType {
 
 // Keep track of how many times a basic block has been run
 // used in final calculation to compare against how many times the program itself has been run
-inline std::unordered_map<const BasicBlock*, int> runs;
 
 struct MCPredictionMissRate : public FunctionPass {
   static char ID;
+  std::unordered_map<const BasicBlock*, int> runs;
   MCPredictionMissRate() : FunctionPass(ID) {}
   bool runOnFunction(Function &F) override;
   bool doInitialization(Module &M) override;
