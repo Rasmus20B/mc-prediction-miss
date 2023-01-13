@@ -2,6 +2,8 @@
 
 using namespace llvm;
 
+template<typename T, typename V>
+requires (std::is_integral_v<T>, std::is_integral_v<V>)
 [[gnu::pure, nodiscard]]
 inline auto getKey(auto x, auto y) noexcept -> auto { return x ^ y; }
 
@@ -33,7 +35,7 @@ auto MCPredictionMissRate::getBlockMissRate(const BasicBlock& bb, const std::uno
   auto res { 0.0 };
   for(auto j : successors(&bb)) {
     // Index into probability for a given pair of blocks is &B1 XOR &B2
-    auto key = getKey(reinterpret_cast<uint64_t>(&bb), reinterpret_cast<uint64_t>(j));
+    auto key = getKey<uint64_t, uint64_t>(reinterpret_cast<uint64_t>(&bb), reinterpret_cast<uint64_t>(j));
     auto br = pb.find(key);
     if(br->second.hits == br->second.hits + br->second.misses) {
       continue;
