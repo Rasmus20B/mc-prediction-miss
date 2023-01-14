@@ -2,11 +2,6 @@
 
 using namespace llvm;
 
-template<typename T, typename V>
-requires (std::is_integral_v<T>, std::is_integral_v<V>)
-[[gnu::pure, nodiscard]]
-inline auto getKey(auto x, auto y) noexcept -> auto { return x ^ y; }
-
 [[nodiscard]]
 inline auto getRand() noexcept -> double {
   std::uniform_real_distribution<float>  Distribution(0.0, 1.0);
@@ -86,6 +81,9 @@ auto MCPredictionMissRate::runOnFunction(Function &F) -> bool {
   MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
   MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
+
+  // Optimize for non-leader nodes: The leader only does it's work after receiving info,
+  // and there are going to be more non-leaders.
   [[likely]]
   if(world_rank != 0) {
     auto res = 0.0;
@@ -117,9 +115,8 @@ auto MCPredictionMissRate::runOnFunction(Function &F) -> bool {
         auto edgeProbsPrev = prob.getEdgeProbability(prev, cur);
         auto pp = static_cast<float>(edgeProbsPrev.getNumerator()) / (edgeProbsPrev.getDenominator());
 
-        auto key = getKey(reinterpret_cast<uint64_t>(cur), reinterpret_cast<uint64_t>(succ));
+        auto key = reinterpret_cast<uint64_t>(cur) ^ reinterpret_cast<uint64_t>(succ);
         auto tmp = ps();
-        
         tmp.prob_cur = p;
         if(pp == 0) pp = 1;
         tmp.prob_prev = pp;
