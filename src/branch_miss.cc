@@ -115,10 +115,10 @@ auto MCPredictionMissRate::runOnFunction(Function &F) -> bool {
       for(auto succ : successors(cur)) {
         // Get the current branch to successor probability
         auto edgeProbsCur = prob.getEdgeProbability(cur, succ);
-        auto p = static_cast<float>(edgeProbsCur.getNumerator()) / (edgeProbsCur.getDenominator());
+        auto p = static_cast<double>(edgeProbsCur.getNumerator()) / (edgeProbsCur.getDenominator());
         // Get the previous branch to current probability
         auto edgeProbsPrev = prob.getEdgeProbability(prev, cur);
-        auto pp = static_cast<float>(edgeProbsPrev.getNumerator()) / (edgeProbsPrev.getDenominator());
+        auto pp = static_cast<double>(edgeProbsPrev.getNumerator()) / (edgeProbsPrev.getDenominator());
 
         auto key = getKey<uint64_t, uint64_t>(reinterpret_cast<uint64_t>(cur), reinterpret_cast<uint64_t>(succ));
         auto tmp = ps();

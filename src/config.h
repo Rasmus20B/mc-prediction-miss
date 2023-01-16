@@ -7,5 +7,3 @@ constexpr auto tests = 200000;
 
 // Either Saturating2Bit or Correlation
 using Circuit = Correlation;
-
-
