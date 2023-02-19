@@ -5,7 +5,7 @@ using namespace llvm;
 template<typename T, typename V>
 requires (std::is_integral_v<T>, std::is_integral_v<V>)
 [[gnu::pure, nodiscard]]
-inline auto getKey(auto x, auto y) noexcept -> auto { return x ^ y; }
+inline auto getKey(const auto x, const auto y) noexcept -> auto { return x ^ y; }
 
 [[nodiscard]]
 inline auto getRand() noexcept -> double {
@@ -31,7 +31,7 @@ auto MCPredictionMissRate::isTerminatingBlock(const BasicBlock& bb, const BasicB
 }
 
 [[nodiscard]]
-auto MCPredictionMissRate::getBlockMissRate(const BasicBlock& bb, const std::unordered_map<int, ps> pb) noexcept -> float {
+auto MCPredictionMissRate::getBlockMissRate(const BasicBlock& bb, const std::unordered_map<int, ps>& pb) noexcept -> float {
   auto res { 0.0 };
   for(auto j : successors(&bb)) {
     // Index into probability for a given pair of blocks is &B1 XOR &B2
@@ -97,6 +97,7 @@ auto MCPredictionMissRate::runOnFunction(Function &F) -> bool {
       Circuit pred{};
       // check if it's a terminating block
       auto tb = isTerminatingBlock(*cur, Blocks.front());
+      [[unlikely]]
       if(tb == BlockType::EMPTY){
         MPI_Send(&res, 1, MPI_DOUBLE, 0, 1, MPI_COMM_WORLD);
         return true;
