@@ -12,7 +12,7 @@ class Predictor {
 
 class Saturating2Bit : public Predictor {
   public:
-    auto predict(const BasicBlock* cur, uint32_t count) noexcept -> bool {  
+    auto predict(const BasicBlock* cur, uint32_t count) noexcept -> bool override {  
       auto found = bht.find(cur);
       if((found == bht.end())) { bht.insert(std::pair<const BasicBlock*, int>(cur, 4)); } 
       found = bht.find(cur); // If the branch is taken 'actual' and predicted to be strong or weak TAKEN 
@@ -50,7 +50,7 @@ class Saturating2Bit : public Predictor {
 
 class Correlation : public Predictor {
   public:
-    auto predict(const BasicBlock* cur, uint32_t count) noexcept -> bool {
+    auto predict(const BasicBlock* cur, uint32_t count) noexcept -> bool override {
 
     // use the address to index the history table
     auto history = corBHT.find(cur);
