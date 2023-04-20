@@ -78,11 +78,9 @@ auto MCPredictionMissRate::doFinalization(Module &M) -> bool {
 auto MCPredictionMissRate::runOnFunction(Function &F) -> bool {
   int world_rank;
   int world_size;
-  // const auto &Blocks = F.getEntryBlock();
   auto loop_count = 0;
   auto cur = &F.getEntryBlock();
   const auto front = cur;
-  // auto cur = &Blocks.front();
   BasicBlock *prev = const_cast<BasicBlock*>(cur);
 
   MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
