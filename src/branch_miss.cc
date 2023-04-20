@@ -78,9 +78,11 @@ auto MCPredictionMissRate::doFinalization(Module &M) -> bool {
 auto MCPredictionMissRate::runOnFunction(Function &F) -> bool {
   int world_rank;
   int world_size;
-  const auto &Blocks = F.getBasicBlockList();
+  // const auto &Blocks = F.getEntryBlock();
   auto loop_count = 0;
-  auto cur = &Blocks.front();
+  auto cur = &F.getEntryBlock();
+  const auto front = cur;
+  // auto cur = &Blocks.front();
   BasicBlock *prev = const_cast<BasicBlock*>(cur);
 
   MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
@@ -96,14 +98,14 @@ auto MCPredictionMissRate::runOnFunction(Function &F) -> bool {
     while(loop_count < tests) {
       Circuit pred{};
       // check if it's a terminating block
-      auto tb = isTerminatingBlock(*cur, Blocks.front());
+      auto tb = isTerminatingBlock(*cur, *front);
       [[unlikely]]
       if(tb == BlockType::EMPTY){
         MPI_Send(&res, 1, MPI_DOUBLE, 0, 1, MPI_COMM_WORLD);
         return true;
       } else if(tb == BlockType::TERM) {
         loop_count++;
-        cur = &Blocks.front();
+        cur = const_cast<BasicBlock*>(front);
         continue;
       }
 
@@ -141,9 +143,9 @@ auto MCPredictionMissRate::runOnFunction(Function &F) -> bool {
         }
       }
       prev = const_cast<BasicBlock*>(cur);
-      cur = next;
+      cur = const_cast<BasicBlock*>(next);
     }
-    for(auto &i : Blocks) {
+    for(auto &i : F) {
       res += getBlockMissRate(i, probabilityTable);
     }
     MPI_Send(&res, 1, MPI_DOUBLE, 0, 1, MPI_COMM_WORLD);
@@ -154,7 +156,7 @@ auto MCPredictionMissRate::runOnFunction(Function &F) -> bool {
       dbgs() << "received " << i << " with  result = " << res_list[i] << "\n";
     }
 
-    auto sum = std::accumulate(res_list.begin(), res_list.end(), 0.0, std::plus<double>());
+    auto sum = std::reduce(res_list.begin(), res_list.end(), 0.0, std::plus<double>());
     auto final_res = sum / (world_size - 1);
     dbgs() << "Miss Rate (%) : " << (final_res) << "\n";
   }

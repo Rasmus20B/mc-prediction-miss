@@ -8,6 +8,8 @@ using namespace llvm;
 class Predictor {
   public:
     virtual auto predict(const BasicBlock* cur, uint32_t count) noexcept -> bool { return true; }
+  protected:
+    ~Predictor() = default;
 };
 
 class Saturating2Bit : public Predictor {
@@ -44,6 +46,7 @@ class Saturating2Bit : public Predictor {
       return true;
     }
 
+    virtual ~Saturating2Bit() = default;
   private:
     std::unordered_map<const BasicBlock*, uint32_t> bht{};
 };
@@ -102,8 +105,9 @@ class Correlation : public Predictor {
     return true;
 
   }
+  virtual ~Correlation() = default;
   private:
-  std::unordered_map<const BasicBlock*, uint8_t> corBHT;
-  std::unordered_map<uint8_t, uint32_t> corBPT;
+   std::unordered_map<const BasicBlock*, uint8_t> corBHT;
+   std::unordered_map<uint8_t, uint32_t> corBPT;
 };
 

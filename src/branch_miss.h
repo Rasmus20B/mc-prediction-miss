@@ -5,6 +5,7 @@
 #include <chrono>
 #include <iostream> 
 #include <numeric>
+#include <execution>
 #include <random>
 
 #include <mpi.h>
