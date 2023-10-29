@@ -1,0 +1,3 @@
+TODO: integrate with new LLVM pass manager
+TODO: clean up "isTerminatingBlock()" function
+TODO: getKey() function. 
