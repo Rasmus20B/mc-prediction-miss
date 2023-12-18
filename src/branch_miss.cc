@@ -2,11 +2,6 @@
 
 using namespace llvm;
 
-template<typename T, typename V>
-requires (std::is_integral_v<T>, std::is_integral_v<V>)
-[[gnu::pure, nodiscard]]
-inline auto getKey(const auto x, const auto y) noexcept -> auto { return x ^ y; }
-
 [[nodiscard]]
 inline auto getRand() noexcept -> double {
   std::uniform_real_distribution<float>  Distribution(0.0, 1.0);
@@ -35,8 +30,7 @@ auto MCPredictionMissRate::getBlockMissRate(const BasicBlock& bb, const std::uno
   auto res { 0.0 };
   for(auto j : successors(&bb)) {
     // Index into probability for a given pair of blocks is &B1 XOR &B2
-    auto key = getKey<uint64_t, uint64_t>(reinterpret_cast<uint64_t>(&bb), reinterpret_cast<uint64_t>(j));
-    auto br = pb.find(key);
+    auto br = pb.find(&bb ^ j);
     if(br->second.hits == br->second.hits + br->second.misses) {
       continue;
     }
@@ -121,13 +115,12 @@ auto MCPredictionMissRate::runOnFunction(Function &F) -> bool {
         auto edgeProbsPrev = prob.getEdgeProbability(prev, cur);
         auto pp = static_cast<double>(edgeProbsPrev.getNumerator()) / (edgeProbsPrev.getDenominator());
 
-        auto key = getKey<uint64_t, uint64_t>(reinterpret_cast<uint64_t>(cur), reinterpret_cast<uint64_t>(succ));
         auto tmp = ps();
         tmp.prob_cur = p;
         if(pp == 0) pp = 1;
         tmp.prob_prev = pp;
 
-        auto ps_found = probabilityTable.find(key);     
+        auto ps_found = probabilityTable.find(cur ^ succ);     
         if(ps_found == probabilityTable.end()) {
           probabilityTable.insert(std::make_pair(key, tmp));
           break;
