@@ -153,7 +153,3 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo
 llvmGetPassPluginInfo() {
   return getMCBranchMissInfo();
 }
-// char MCPredictionMissRate::ID = 0;
-// static RegisterPass<MCPredictionMissRate> X("mc-branch-miss", "Monte-Carlo branch prediction miss rate simulation",
-//                              false /* Only looks at CFG */,
-//                              false /* Analysis Pass */);
