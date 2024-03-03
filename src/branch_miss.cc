@@ -1,11 +1,19 @@
 #include "branch_miss.h"
+#include <mpi.h>
+#include <random>
 
 using namespace llvm;
 
+template<typename T, typename V>
+requires (std::is_integral_v<T>, std::is_integral_v<V>)
+[[gnu::pure, nodiscard]]
+inline auto getKey(const auto x, const auto y) noexcept -> auto { return x ^ y; }
+
 [[nodiscard]]
 inline auto getRand() noexcept -> double {
+  std::random_device rd{};
   std::uniform_real_distribution<float>  Distribution(0.0, 1.0);
-  std::default_random_engine Generator(std::chrono::system_clock::now().time_since_epoch().count());
+  std::default_random_engine Generator{rd()};
   return Distribution(Generator);
 }
 
@@ -30,7 +38,8 @@ auto MCPredictionMissRate::getBlockMissRate(const BasicBlock& bb, const std::uno
   auto res { 0.0 };
   for(auto j : successors(&bb)) {
     // Index into probability for a given pair of blocks is &B1 XOR &B2
-    auto br = pb.find(&bb ^ j);
+    auto key = getKey<uint64_t, uint64_t>(reinterpret_cast<uint64_t>(&bb), reinterpret_cast<uint64_t>(j));
+    auto br = pb.find(key);
     if(br->second.hits == br->second.hits + br->second.misses) {
       continue;
     }
@@ -47,6 +56,7 @@ auto MCPredictionMissRate::getActualSuccessor(const BasicBlock& bb, const Branch
   auto start = 0.0f;
   auto count = 0;
   auto rand = getRand();
+  dbgs() << "rand: " << rand << "\n";
   // Use that random number to select a successor "Actual"
   for(auto succ : successors(&bb)) {
     auto edgeProbs = bp.getEdgeProbability(&bb, succ);
@@ -60,101 +70,92 @@ auto MCPredictionMissRate::getActualSuccessor(const BasicBlock& bb, const Branch
   return std::make_tuple(nullptr, count);
 }
 
-auto MCPredictionMissRate::doInitialization(Module &M) -> bool {
-  MPI_Init(nullptr, nullptr);
-  return true;
-}
-
-auto MCPredictionMissRate::doFinalization(Module &M) -> bool {
-  MPI_Finalize();
-  return true;
-}
-auto MCPredictionMissRate::runOnFunction(Function &F) -> bool {
-  int world_rank;
-  int world_size;
+auto MCPredictionMissRate::run(Function &F, llvm::FunctionAnalysisManager&) {
   auto loop_count = 0;
   auto cur = &F.getEntryBlock();
   const auto front = cur;
   BasicBlock *prev = const_cast<BasicBlock*>(cur);
 
-  MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
-  MPI_Comm_size(MPI_COMM_WORLD, &world_size);
-
-
   // Optimize for non-leader nodes: The leader only does it's work after receiving info,
   // and there are going to be more non-leaders.
-  [[likely]]
-  if(world_rank != 0) {
-    auto res = 0.0;
-    std::unordered_map<int, ps> probabilityTable;
-    while(loop_count < tests) {
-      Circuit pred{};
-      // check if it's a terminating block
-      auto tb = isTerminatingBlock(*cur, *front);
-      [[unlikely]]
-      if(tb == BlockType::EMPTY){
-        MPI_Send(&res, 1, MPI_DOUBLE, 0, 1, MPI_COMM_WORLD);
-        return true;
-      } else if(tb == BlockType::TERM) {
-        loop_count++;
-        cur = const_cast<BasicBlock*>(front);
-        continue;
+  auto res = 0.0;
+  std::unordered_map<int, ps> probabilityTable;
+  while(loop_count < tests) {
+    Circuit pred{};
+    // check if it's a terminating block
+    auto tb = isTerminatingBlock(*cur, *front);
+    if(tb == BlockType::EMPTY) [[unlikely]] {
+      return PreservedAnalyses::all();
+    } else if(tb == BlockType::TERM) {
+      loop_count++;
+      cur = const_cast<BasicBlock*>(front);
+      continue;
+    }
+
+    auto prob = BranchProbabilityInfo();
+    // Get actual successor and if it's the first of second branch (count)
+    auto [next, count] = getActualSuccessor(*cur, prob);
+    // Get predicted successor
+    auto pred_res = pred.predict(cur, count);
+    // update the map of cur -> successor branch info
+    for(auto succ : successors(cur)) {
+      // Get the current branch to successor probability
+      auto edgeProbsCur = prob.getEdgeProbability(cur, succ);
+      auto p = static_cast<double>(edgeProbsCur.getNumerator()) / (edgeProbsCur.getDenominator());
+      // Get the previous branch to current probability
+      auto edgeProbsPrev = prob.getEdgeProbability(prev, cur);
+      auto pp = static_cast<double>(edgeProbsPrev.getNumerator()) / (edgeProbsPrev.getDenominator());
+
+      auto tmp = ps();
+      tmp.prob_cur = p;
+      if(pp == 0) pp = 1;
+      tmp.prob_prev = pp;
+      
+      auto key = getKey<uint64_t, uint64_t>(reinterpret_cast<uint64_t>(cur), reinterpret_cast<uint64_t>(succ));
+      auto ps_found = probabilityTable.find(key);     
+      if(ps_found == probabilityTable.end()) {
+        probabilityTable.insert(std::make_pair(key, tmp));
+        break;
       }
-
-      auto prob = BranchProbabilityInfo();
-      // Get actual successor and if it's the first of second branch (count)
-      auto [next, count] = getActualSuccessor(*cur, prob);
-      // Get predicted successor
-      auto pred_res = pred.predict(cur, count);
-      // update the map of cur -> successor branch info
-      for(auto succ : successors(cur)) {
-        // Get the current branch to successor probability
-        auto edgeProbsCur = prob.getEdgeProbability(cur, succ);
-        auto p = static_cast<double>(edgeProbsCur.getNumerator()) / (edgeProbsCur.getDenominator());
-        // Get the previous branch to current probability
-        auto edgeProbsPrev = prob.getEdgeProbability(prev, cur);
-        auto pp = static_cast<double>(edgeProbsPrev.getNumerator()) / (edgeProbsPrev.getDenominator());
-
-        auto tmp = ps();
-        tmp.prob_cur = p;
-        if(pp == 0) pp = 1;
-        tmp.prob_prev = pp;
-
-        auto ps_found = probabilityTable.find(cur ^ succ);     
-        if(ps_found == probabilityTable.end()) {
-          probabilityTable.insert(std::make_pair(key, tmp));
-          break;
-        }
-        auto ps = probabilityTable.find(key);
-        ps->second.n_arrives++;
-        if(next == succ && pred_res) {
-          ps->second.hits++;
-        } else if (next != succ && !pred_res) {
-          ps->second.misses++;
-        }
+      auto ps = probabilityTable.find(key);
+      ps->second.n_arrives++;
+      if(next == succ && pred_res) {
+        ps->second.hits++;
+      } else if (next != succ && !pred_res) {
+        ps->second.misses++;
       }
-      prev = const_cast<BasicBlock*>(cur);
-      cur = const_cast<BasicBlock*>(next);
+    }
+    prev = const_cast<BasicBlock*>(cur);
+    cur = const_cast<BasicBlock*>(next);
     }
     for(auto &i : F) {
       res += getBlockMissRate(i, probabilityTable);
     }
-    MPI_Send(&res, 1, MPI_DOUBLE, 0, 1, MPI_COMM_WORLD);
-  } else {
-    std::vector<double> res_list(world_size);
-    for(auto i = 0; i < world_size - 1; ++i) {
-      MPI_Recv(&res_list[i], world_size, MPI_DOUBLE, MPI_ANY_SOURCE, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-      dbgs() << "received " << i << " with  result = " << res_list[i] << "\n";
-    }
 
-    auto sum = std::reduce(res_list.begin(), res_list.end(), 0.0, std::plus<double>());
-    auto final_res = sum / (world_size - 1);
-    dbgs() << "Miss Rate (%) : " << (final_res) << "\n";
-  }
-  return true;
+    dbgs() << "Miss Rate (%) : " << static_cast<float>(res) << "\n";
+  return llvm::PreservedAnalyses::all();
 }
 
-char MCPredictionMissRate::ID = 0;
-static RegisterPass<MCPredictionMissRate> X("mc-branch-miss", "Monte-Carlo branch prediction miss rate simulation",
-                             false /* Only looks at CFG */,
-                             false /* Analysis Pass */);
+llvm::PassPluginLibraryInfo getMCBranchMissInfo() {
+  return {LLVM_PLUGIN_API_VERSION, "MCBranchMiss", LLVM_VERSION_STRING,
+          [](PassBuilder &PB) {
+            PB.registerPipelineParsingCallback(
+                [](StringRef Name, FunctionPassManager &FPM,
+                   ArrayRef<PassBuilder::PipelineElement>) {
+                  if (Name == "mc-branch-miss") {
+                    FPM.addPass(MCPredictionMissRate());
+                    return true;
+                  }
+                  return false;
+                });
+          }};
+}
+
+extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo
+llvmGetPassPluginInfo() {
+  return getMCBranchMissInfo();
+}
+// char MCPredictionMissRate::ID = 0;
+// static RegisterPass<MCPredictionMissRate> X("mc-branch-miss", "Monte-Carlo branch prediction miss rate simulation",
+//                              false /* Only looks at CFG */,
+//                              false /* Analysis Pass */);

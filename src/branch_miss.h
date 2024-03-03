@@ -18,10 +18,12 @@
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
-
+#include "llvm/Passes/PassBuilder.h"
+#include "llvm/Passes/PassPlugin.h"
 #include "predictor.h"
 #include "config.h"
-
+#include "llvm/IR/ValueHandle.h"
+#include "llvm/IR/PassInstrumentation.h"
 
 using namespace llvm;
 /* a given probability struct:
@@ -53,15 +55,14 @@ enum BlockType {
 // Keep track of how many times a basic block has been run
 // used in final calculation to compare against how many times the program itself has been run
 
-struct MCPredictionMissRate : public FunctionPass {
-  MCPredictionMissRate() : FunctionPass(ID) {}
-  bool runOnFunction(Function &F) override;
-  bool doInitialization(Module &M) override;
-  bool doFinalization(Module &M) override;
+struct MCPredictionMissRate : public llvm::PassInfoMixin<MCPredictionMissRate> {
+
+  bool runBeforePass();
+  bool runAfterPass();
+  auto run(Function &F, llvm::FunctionAnalysisManager&) ;
 
   bool saturating2Bit(const BasicBlock* cur,  uint32_t count) noexcept;
   bool correlation(const BasicBlock* cur, uint32_t count) noexcept;
-
   float getBlockMissRate(const BasicBlock& bb, const std::unordered_map<int, ps>& pb) noexcept;
   std::tuple<const BasicBlock*, uint32_t> getActualSuccessor(const BasicBlock& bb, const BranchProbabilityInfo& bp) noexcept;
   inline BlockType isTerminatingBlock(const BasicBlock& bb, const BasicBlock& front) noexcept;
