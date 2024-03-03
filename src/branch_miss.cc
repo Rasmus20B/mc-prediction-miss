@@ -56,7 +56,6 @@ auto MCPredictionMissRate::getActualSuccessor(const BasicBlock& bb, const Branch
   auto start = 0.0f;
   auto count = 0;
   auto rand = getRand();
-  dbgs() << "rand: " << rand << "\n";
   // Use that random number to select a successor "Actual"
   for(auto succ : successors(&bb)) {
     auto edgeProbs = bp.getEdgeProbability(&bb, succ);
@@ -93,7 +92,7 @@ auto MCPredictionMissRate::run(Function &F, llvm::FunctionAnalysisManager&) {
     }
 
     auto prob = BranchProbabilityInfo();
-    // Get actual successor and if it's the first of second branch (count)
+    // Get actual successor and if it's the first or second branch (count)
     auto [next, count] = getActualSuccessor(*cur, prob);
     // Get predicted successor
     auto pred_res = pred.predict(cur, count);
@@ -127,12 +126,11 @@ auto MCPredictionMissRate::run(Function &F, llvm::FunctionAnalysisManager&) {
     }
     prev = const_cast<BasicBlock*>(cur);
     cur = const_cast<BasicBlock*>(next);
-    }
-    for(auto &i : F) {
-      res += getBlockMissRate(i, probabilityTable);
-    }
-
-    dbgs() << "Miss Rate (%) : " << static_cast<float>(res) << "\n";
+  }
+  for(auto &i : F) {
+    res += getBlockMissRate(i, probabilityTable);
+  }
+  dbgs() << "Miss Rate (%) : " << (res) << "\n";
   return llvm::PreservedAnalyses::all();
 }
 
